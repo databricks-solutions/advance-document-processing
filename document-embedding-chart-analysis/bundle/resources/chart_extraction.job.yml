@@ -1,0 +1,82 @@
+resources:
+  jobs:
+    chart_extraction_streaming:
+      name: "[${bundle.target}] Chart Extraction Streaming"
+
+      schedule:
+        quartz_cron_expression: "0 0/15 * * * ?"
+        timezone_id: UTC
+        pause_status: ${var.schedule_pause_status}
+
+      max_concurrent_runs: 1
+
+      # Serverless notebook environment pinned to env version 5
+      environments:
+        - environment_key: serverless_v5
+          spec:
+            client: "5"
+
+      tasks:
+        - task_key: bronze_parse
+          environment_key: serverless_v5
+          notebook_task:
+            notebook_path: ../src/01_bronze_parse.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: silver_explode
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: bronze_parse
+          notebook_task:
+            notebook_path: ../src/02_silver_explode.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: silver_classify_crop
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: silver_explode
+          notebook_task:
+            notebook_path: ../src/03_silver_classify_crop.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: chart_insights
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: silver_classify_crop
+          notebook_task:
+            notebook_path: ../src/04_chart_insights.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+              llm_model: ${var.llm_model}
+
+        - task_key: gold_merge
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: chart_insights
+          notebook_task:
+            notebook_path: ../src/05_gold_merge.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
