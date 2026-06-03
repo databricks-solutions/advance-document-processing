@@ -3,3 +3,10 @@
 __pycache__
 .idea/
 .env
+
+.vscode
+.idea/
+.claude/
+.databricks
+mlflow.db 
+.mcp.json
