@@ -1,0 +1,34 @@
+bundle:
+  name: loan_doc_extraction_streaming
+
+variables:
+  catalog:
+    description: Unity Catalog name
+    default: fins_genai
+  schema:
+    description: Schema name
+    default: unstructured_documents
+  volume:
+    description: Volume name (contains source PDFs and intermediate artifacts)
+    default: pdf_examples
+  volume_subdir:
+    description: Subfolder under the volume that holds the source loan-file PDFs
+    default: mortgage_loan_files
+  table_prefix:
+    description: Prefix applied to all bronze/silver/gold tables (isolates streaming from batch)
+    default: loan_docs_stream
+  schedule_pause_status:
+    description: PAUSED or UNPAUSED for the scheduled trigger
+    default: PAUSED
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production
+    variables:
+      schedule_pause_status: UNPAUSED
