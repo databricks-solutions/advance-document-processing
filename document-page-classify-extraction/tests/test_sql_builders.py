@@ -64,8 +64,9 @@ def test_ai_extract_expr_gates_on_label_and_uses_input_col():
 
 
 def test_ai_extract_expr_escapes_single_quotes():
-    # single quotes in schema/instructions must be doubled for SQL string literals
-    sql = S.ai_extract_expr("x", "{'k':'v'}", "don't guess", "page_text")
+    # single quotes in label/schema/instructions must be doubled for SQL string literals
+    sql = S.ai_extract_expr("won't_match", "{'k':'v'}", "don't guess", "page_text")
+    assert "page_class = 'won''t_match'" in sql
     assert "{''k'':''v''}" in sql
     assert "don''t guess" in sql
 

@@ -99,8 +99,9 @@ bottom.
 
 ## Recipe 03 scoring model
 
-- **Hybrid comparator** — `digit_fields` compare digits-only equality (IDs, dates,
-  amounts); every other field uses a normalized Levenshtein ratio
+- **Hybrid comparator** — `digit_fields` compare **numerically** (decimal-insensitive,
+  so `1884.0` == `1884.00` == `"1,884.00"`), with an exact normalized-text fallback
+  for non-numeric IDs; every other field uses a normalized Levenshtein ratio
   `>= fuzzy_threshold` (default 0.85).
 - **Absence-as-a-class** — each field is classified `TP` / `TN` / `FP` / `FN` /
   `FP_FN`. `FP_FN` (present but wrong) counts against **both** precision and recall.

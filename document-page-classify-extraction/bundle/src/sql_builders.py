@@ -38,10 +38,11 @@ def build_merge(target, source_view, key_cols, all_cols):
 
 
 def ai_extract_expr(label, schema_json, instructions, extract_input="page_text"):
+    label_sql = label.replace("'", "''")
     schema_sql = schema_json.replace("'", "''")
     instr_sql = instructions.replace("'", "''")
     return f"""
-        CASE WHEN page_class = '{label}' THEN
+        CASE WHEN page_class = '{label_sql}' THEN
             ai_extract(
                 {extract_input},
                 '{schema_sql}',

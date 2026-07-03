@@ -1,5 +1,5 @@
 doc_id,employee_name,employer_name,social_security_number,taxable_marital_status,hire_date,pay_date,period_start_date,period_end_date,payment_frequency,gross__current_amount,gross__year_to_date_amount,net_pay__current_amount,net_pay__year_to_date_amount
-paystub_synth_1.pdf,Jordan Rivera,Metro City Transit Authority,XXX-XX-4821,Married,14-Mar-2021,07-Nov-2025,20-Oct-2025,02-Nov-2025,Week,"1,884.00","43,332.00","1,387.35","31,909.05"
+paystub_synth_1.pdf,Jordan Rivera,Metro City Transit Authority,XXX-XX-4821,Married,14-Mar-2021,07-Nov-2025,20-Oct-2025,02-Nov-2025,Bi-Week,"1,884.00","43,332.00","1,387.35","31,909.05"
 paystub_synth_2.pdf,Alicia Chen,Northgate Logistics LLC,XXX-XX-7156,Single,02-Aug-2022,31-Oct-2025,13-Oct-2025,26-Oct-2025,Bi-Week,"1,910.00","40,110.00","1,495.30","31,401.30"
 paystub_synth_3.pdf,Marcus Bell,Harbor Foods Group Inc,XXX-XX-3390,Head of Household,19-Jun-2023,24-Oct-2025,13-Oct-2025,19-Oct-2025,Week,877.50,"35,977.50",699.72,"28,688.72"
 paystub_synth_4.pdf,Priya Nair,Cedar Valley Health System,,Married,05-Feb-2020,07-Nov-2025,20-Oct-2025,02-Nov-2025,Bi-Week,"2,115.38","48,653.74","1,580.63","36,354.49"

@@ -67,7 +67,7 @@ RECORDS = [
         "employer_phone": "2220 Metro City Transit Authority",
         "organization": "2220 Metro City Transit Authority",
         "pay_basis": "Hourly",
-        "frequency": "Week",
+        "frequency": "Bi-Week",
         "shift": "Day",
         "bargaining_unit": "MCT Operators Union",
         "grade": "72.J",
@@ -86,7 +86,7 @@ RECORDS = [
         "gross_ytd": "43,332.00", "pretax_ytd": "3,268.30", "taxes_ytd": "7,326.65",
         "deductions_ytd": "828.00", "net_ytd": "31,909.05",
         "earnings": [
-            ("Operator Labor", "31.40", "80.00", "1,884.00", "1840.00", "43,332.00"),
+            ("Operator Labor", "31.40", "60.00", "1,884.00", "1840.00", "43,332.00"),
             ("Overtime Operator", "47.10", "0.00", "0.00", "60.00", "2,826.00"),
             ("Holiday Pay", "31.40", "0.00", "0.00", "40.00", "1,256.00"),
         ],

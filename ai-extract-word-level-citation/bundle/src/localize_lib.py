@@ -4,9 +4,11 @@ Extracted verbatim from ``bundle/src/03_localize.py`` so the coordinate math and
 OCR string-matching can be tested without Spark / dbutils / pytesseract / PIL.
 
 Everything here is a pure function (no side effects, no I/O), which is why it is
-import-safe on the driver, on executors (the notebook ships this file via
-``spark.sparkContext.addPyFile``), and locally under pytest. The impure OCR/crop
-helpers (``crop_element``, ``ocr_tokens``) deliberately stay in the notebook.
+import-safe on the driver, on executors (03_localize registers this module for
+cloudpickle pickle-by-value so the pandas UDFs serialize these functions into
+their closures — serverless is Spark Connect and has no ``sparkContext`` /
+``addPyFile``), and locally under pytest. The impure OCR/crop helpers
+(``crop_element``, ``ocr_tokens``) deliberately stay in the notebook.
 """
 
 import json

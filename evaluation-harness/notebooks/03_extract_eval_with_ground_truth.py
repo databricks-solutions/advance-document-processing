@@ -166,8 +166,9 @@ assert matched > 0, "No rows joined — check doc_id_col / gt_id_col and the nor
 
 # COMMAND ----------
 
-def norm_digits(col):
-    return F.regexp_replace(col.cast("string"), r"[^0-9]", "")
+def norm_amount(col):
+    # numeric value of the digits (decimal-insensitive), or NULL if non-numeric
+    return F.try_cast(F.regexp_replace(col.cast("string"), r"[^0-9.]", ""), "double")
 
 
 def norm_text(col):
@@ -183,7 +184,14 @@ for f in fields:
     pred_blank, gt_blank = is_blank(pred), is_blank(gt_col)
 
     if f in digit_fields:
-        match = norm_digits(pred) == norm_digits(gt_col)
+        # Compare numerically so 1884.0 == 1884.00 == "1,884.00"; fall back to exact
+        # normalized text when either side has no parseable number (e.g. "N/A"), so two
+        # different non-numeric values are not both reduced to "" and called equal.
+        pred_amt, gt_amt = norm_amount(pred), norm_amount(gt_col)
+        match = F.when(
+            pred_amt.isNotNull() & gt_amt.isNotNull(),
+            F.abs(pred_amt - gt_amt) < F.lit(0.005),
+        ).otherwise(norm_text(pred) == norm_text(gt_col))
     else:
         a, b = norm_text(pred), norm_text(gt_col)
         ratio = F.lit(1.0) - (F.levenshtein(a, b) / F.greatest(F.length(a), F.length(b), F.lit(1)))
@@ -238,7 +246,9 @@ metrics = (
         "tp / nullif(tp + fn + fp_fn, 0) AS recall",
     )
     .selectExpr("*", "2 * precision * recall / nullif(precision + recall, 0) AS f1")
-    .orderBy("f1")
+    # A field that is absent-and-correct everywhere has no positives, so P/R/F1 are
+    # NULL (undefined), not 0 — sort those last instead of flagging them as "worst".
+    .orderBy(F.col("f1").asc_nulls_last())
 )
 display(metrics)
 metrics_rows = metrics.collect()
@@ -257,6 +267,7 @@ metrics_rows = metrics.collect()
 # COMMAND ----------
 
 import mlflow
+import pandas as pd
 from mlflow.genai.scorers import scorer, Correctness
 from mlflow.entities import Feedback
 
@@ -270,7 +281,8 @@ def build_expected_facts(row):
     facts = []
     for f in fields:
         g = row[f"gt_{f}"]
-        if g is None or str(g).strip() == "":
+        # pd.isna catches both None and NaN (toPandas renders a NULL numeric column as NaN).
+        if pd.isna(g) or str(g).strip() == "":
             facts.append(f"{f} is not present in the document")
         else:
             facts.append(f"{f} is {g}")
@@ -306,9 +318,11 @@ with mlflow.start_run(run_name="ai_extract_eval_gt") as run:
         scorers=[Correctness(model=judge_model), *field_scorers],
     )
     for m in metrics_rows:
-        mlflow.log_metric(f"{m['field']}_precision", float(m["precision"] or 0.0))
-        mlflow.log_metric(f"{m['field']}_recall", float(m["recall"] or 0.0))
-        mlflow.log_metric(f"{m['field']}_f1", float(m["f1"] or 0.0))
+        # Log only defined metrics — a NULL (undefined) P/R/F1 should not be recorded
+        # as 0.0, which would misrepresent an absent-and-correct field as a failure.
+        for _metric in ("precision", "recall", "f1"):
+            if m[_metric] is not None:
+                mlflow.log_metric(f"{m['field']}_{_metric}", float(m[_metric]))
     print(f"MLflow run: {run.info.run_id}")
 
 # COMMAND ----------
