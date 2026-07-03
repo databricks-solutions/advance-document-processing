@@ -1,0 +1,29 @@
+bundle:
+  name: ai_extract_word_level_citation
+
+variables:
+  catalog:
+    description: Unity Catalog name
+    default: fins_genai
+  schema:
+    description: Schema name
+    default: unstructured_documents
+  volume:
+    description: Volume name containing source PDFs and workflow artifacts
+    default: paystubs
+  volume_subdir:
+    description: Optional subfolder under the volume that holds the source PDFs
+    default: ""
+  table_prefix:
+    description: Prefix applied to output tables
+    default: paystub_bbox_stream
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production

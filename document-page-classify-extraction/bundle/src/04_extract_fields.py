@@ -202,30 +202,16 @@ CREATE TABLE IF NOT EXISTS {extracted_table} (
 
 from pyspark.sql.functions import expr
 
-
-def ai_extract_expr(label: str) -> str:
-    schema_json, instructions = EXTRACT_SCHEMAS[label]
-    schema_sql = schema_json.replace("'", "''")
-    instr_sql = instructions.replace("'", "''")
-    return f"""
-        CASE WHEN page_class = '{label}' THEN
-            ai_extract(
-                {EXTRACT_INPUT},
-                '{schema_sql}',
-                map(
-                    'version',                '2.1',
-                    'enableCitations',        'true',
-                    'enableConfidenceScores', 'true',
-                    'instructions',           '{instr_sql}'
-                )
-            )
-        END
-    """
-
+# SQL builder lives in sql_builders.py (co-located, unit-tested); driver-only.
+from sql_builders import ai_extract_expr
 
 extract_stream = spark.readStream.table(classified_table).where("page_class <> 'noise'")
 for label in EXTRACT_SCHEMAS:
-    extract_stream = extract_stream.withColumn(f"{label}_extracted", expr(ai_extract_expr(label)))
+    schema_json, instructions = EXTRACT_SCHEMAS[label]
+    extract_stream = extract_stream.withColumn(
+        f"{label}_extracted",
+        expr(ai_extract_expr(label, schema_json, instructions, EXTRACT_INPUT)),
+    )
 
 extract_stream = extract_stream.select(
     "path", "page_id", "page_class",

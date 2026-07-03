@@ -1,12 +1,18 @@
-*conf*.json
+# OS / editor
 .DS_Store
-__pycache__
-.idea/
-.env
-
 .vscode
 .idea/
-.claude/
+
+# Python
+__pycache__
+.venv/
+.pytest_cache/
+.mypy_cache/
+.env
+
+# Databricks / local config (may contain secrets)
+*conf*.json
 .databricks
-mlflow.db 
+.claude/
 .mcp.json
+mlflow.db

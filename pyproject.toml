@@ -1,0 +1,22 @@
+[project]
+name = "advance-document-processing-tests"
+version = "0"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8",
+    "rapidfuzz>=3",
+]
+
+# Unit tests for the production bundle code only (notebooks/ and evaluation-harness/
+# are demos and are not tested). Each bundle's pure helpers were extracted into a
+# co-located module under bundle/src/; `pythonpath` makes those importable without
+# a conftest, and `testpaths` keeps discovery to the per-pipeline tests/ dirs.
+[tool.pytest.ini_options]
+testpaths = [
+    "ai-extract-word-level-citation/tests",
+    "document-page-classify-extraction/tests",
+]
+pythonpath = [
+    "ai-extract-word-level-citation/bundle/src",
+    "document-page-classify-extraction/bundle/src",
+]

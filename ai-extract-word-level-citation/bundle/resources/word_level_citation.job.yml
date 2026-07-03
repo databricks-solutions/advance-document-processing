@@ -1,0 +1,59 @@
+resources:
+  jobs:
+    ai_extract_word_level_citation:
+      name: "[${bundle.target}] AI Extract Word-Level Citation"
+
+      # Batch pipeline triggered manually (upload PDFs -> run job -> read enriched table).
+      max_concurrent_runs: 1
+
+      # Per-run job parameter: override at trigger time with
+      #   databricks bundle run ... --params reset_data=true
+      parameters:
+        - name: reset_data
+          default: "false"
+
+      # Serverless notebook environment pinned to env version 5.
+      # ai_extract 2.1 citations require DBR 18.2+ / serverless env v3+.
+      environments:
+        - environment_key: serverless_v5
+          spec:
+            client: "5"
+
+      tasks:
+        - task_key: bronze_parse
+          environment_key: serverless_v5
+          notebook_task:
+            notebook_path: ../src/01_bronze_parse.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+              reset_data: "{{job.parameters.reset_data}}"
+
+        - task_key: extract_flat
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: bronze_parse
+          notebook_task:
+            notebook_path: ../src/02_extract_flat.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: localize_entities
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: extract_flat
+          notebook_task:
+            notebook_path: ../src/03_localize.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}

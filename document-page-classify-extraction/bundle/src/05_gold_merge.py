@@ -38,8 +38,9 @@ gold_bank       = f"{catalog}.{schema}.{table_prefix}_gold_bank_statements"
 artifacts_root  = f"/Volumes/{catalog}/{schema}/{volume}/_streaming/{table_prefix}"
 ckpt            = f"{artifacts_root}/checkpoints/gold_merge"
 
-RESPONSE_ROOT = "response"
-VALUE_LEAF = "value"
+# SQL builders live in sql_builders.py (co-located, unit-tested). They run on the
+# driver only, so a plain import is enough.
+from sql_builders import value_expr, gold_name, build_merge
 
 print(f"extracted_table = {extracted_table}")
 print(f"gold_loans      = {gold_loans}")
@@ -127,14 +128,6 @@ REPEATING_FIELDS = {
 
 # COMMAND ----------
 
-def value_expr(cls, field, sql_type):
-    return f"variant_get({cls}_extracted, '$.{RESPONSE_ROOT}.{field}.{VALUE_LEAF}', '{sql_type}')"
-
-
-def gold_name(prefix, field):
-    return f"{prefix}_{field.replace('.', '_')}"
-
-
 # gold_loan_files columns: (name, type)
 loan_cols = [
     (gold_name(SINGLETON_PREFIX[cls], fld), typ)
@@ -166,19 +159,6 @@ for cls, table in REPEATING.items():
 # MAGIC ## foreachBatch: recompute affected loans/docs → MERGE
 
 # COMMAND ----------
-
-def build_merge(target, source_view, key_cols, all_cols):
-    on = " AND ".join(f"t.{c} = s.{c}" for c in key_cols)
-    set_clause = ", ".join(f"t.{c} = s.{c}" for c in all_cols if c not in key_cols)
-    insert_cols = ", ".join(all_cols)
-    insert_vals = ", ".join(f"s.{c}" for c in all_cols)
-    return f"""
-        MERGE INTO {target} t
-        USING {source_view} s ON {on}
-        WHEN MATCHED THEN UPDATE SET {set_clause}
-        WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_vals})
-    """
-
 
 # Pre-build the recompute SELECTs (filtered to affected paths at run time).
 singleton_select = [
