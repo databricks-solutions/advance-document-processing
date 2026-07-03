@@ -101,6 +101,8 @@ document-page-classify-extraction/
 │   ├── 04_extract_fields.py
 │   └── 05_gold_merge.py
 ├── sample_data/                     # 4 synthetic mortgage loan-file PDFs (12 pages each)
+├── tests/                           # pytest for the bundle's pure SQL builders (uv run pytest)
+│   └── test_sql_builders.py
 └── bundle/                          # Streaming DAB
     ├── databricks.yml               # variables, dev/prod targets
     ├── resources/
@@ -110,7 +112,8 @@ document-page-classify-extraction/
         ├── 02_silver_pages.py       # within-row page split (append, stateless)
         ├── 03_classify_pages.py     # ai_classify → page_class (append)
         ├── 04_extract_fields.py     # per-class ai_extract routing (append)
-        └── 05_gold_merge.py         # foreachBatch + MERGE → 3 flat gold tables
+        ├── 05_gold_merge.py         # foreachBatch + MERGE → 3 flat gold tables
+        └── sql_builders.py          # pure SQL-string builders (value_expr/gold_name/build_merge/ai_extract_expr) — unit-tested
 ```
 
 The repo-root `scripts/` holds two helpers:
