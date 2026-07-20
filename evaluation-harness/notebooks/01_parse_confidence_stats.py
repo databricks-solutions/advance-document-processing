@@ -41,7 +41,7 @@
 
 dbutils.widgets.text("catalog", "fins_genai")
 dbutils.widgets.text("schema", "unstructured_documents")
-dbutils.widgets.text("parsed_table", "paystub_bbox_stream_bronze_parsed_docs")
+dbutils.widgets.text("parsed_table", "paystub_eval_bronze_parsed")
 dbutils.widgets.text("parsed_col", "parsed")
 dbutils.widgets.text("doc_id_col", "path")
 dbutils.widgets.text("abs_floor", "0.5")
