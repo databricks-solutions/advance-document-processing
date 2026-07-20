@@ -37,7 +37,7 @@
 
 dbutils.widgets.text("catalog", "fins_genai")
 dbutils.widgets.text("schema", "unstructured_documents")
-dbutils.widgets.text("extracted_table", "paystub_bbox_stream_extracted")
+dbutils.widgets.text("extracted_table", "paystub_eval_extracted_nested")
 dbutils.widgets.text("extracted_col", "extracted")
 dbutils.widgets.text("doc_id_col", "path")
 dbutils.widgets.text("fields", "")
