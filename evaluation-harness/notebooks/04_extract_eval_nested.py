@@ -272,6 +272,11 @@ display(spark.sql(f"SELECT doc_id, to_json(extracted) AS extracted_json FROM {pr
 # MAGIC that mirrors the ground-truth shape. Per-leaf `confidence_score` is captured
 # MAGIC separately for the calibration appendix. Both sides are keyed by a normalized
 # MAGIC document id.
+# MAGIC
+# MAGIC > The pure-Python normalization + scoring functions below (this cell through the
+# MAGIC > recursive scorer) are kept **inline** so the notebook is self-contained. The
+# MAGIC > canonical, unit-tested copy lives in `../src/nested_eval.py`
+# MAGIC > (`evaluation-harness/tests/test_nested_eval.py`) — keep the two in sync.
 
 # COMMAND ----------
 

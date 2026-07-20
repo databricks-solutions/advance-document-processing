@@ -204,19 +204,16 @@ INSTRUCTIONS = (
 # The flat schema is the subset of PAYSTUB_SCHEMA that the simple ground-truth CSV
 # labels. FIELD_SPECS maps each flat column to its dotted path under $.response and
 # the SQL type used when flattening the ai_extract VARIANT.
-FLAT_SCHEMA = {
-    "employee_name": PAYSTUB_SCHEMA["employee_name"],
-    "employer_name": PAYSTUB_SCHEMA["employer_name"],
-    "social_security_number": PAYSTUB_SCHEMA["social_security_number"],
-    "taxable_marital_status": PAYSTUB_SCHEMA["taxable_marital_status"],
-    "hire_date": PAYSTUB_SCHEMA["hire_date"],
-    "pay_date": PAYSTUB_SCHEMA["pay_date"],
-    "period_start_date": PAYSTUB_SCHEMA["period_start_date"],
-    "period_end_date": PAYSTUB_SCHEMA["period_end_date"],
-    "payment_frequency": PAYSTUB_SCHEMA["payment_frequency"],
-    "gross": PAYSTUB_SCHEMA["gross"],
-    "net_pay": PAYSTUB_SCHEMA["net_pay"],
-}
+# deepcopy so the flat subset owns its nodes — an in-place edit here (e.g. adding an
+# enum or normalization to a field) must not silently mutate the nested schema.
+import copy
+
+_FLAT_FIELDS = [
+    "employee_name", "employer_name", "social_security_number", "taxable_marital_status",
+    "hire_date", "pay_date", "period_start_date", "period_end_date", "payment_frequency",
+    "gross", "net_pay",
+]
+FLAT_SCHEMA = {f: copy.deepcopy(PAYSTUB_SCHEMA[f]) for f in _FLAT_FIELDS}
 
 # (flat_column_name, dotted response path, sql_type) — matches paystub_ground_truth.csv
 FIELD_SPECS = [
