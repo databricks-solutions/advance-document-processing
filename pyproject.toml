@@ -19,9 +19,11 @@ testpaths = [
     "ai-extract-word-level-citation/tests",
     "document-page-classify-extraction/tests",
     "evaluation-harness/tests",
+    "insurance-kb-vector-search/tests",
 ]
 pythonpath = [
     "ai-extract-word-level-citation/bundle/src",
     "document-page-classify-extraction/bundle/src",
     "evaluation-harness/src",
+    "insurance-kb-vector-search/bundle/src",
 ]

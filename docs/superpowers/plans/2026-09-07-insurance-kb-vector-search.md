@@ -46,14 +46,14 @@ insurance-kb-vector-search/
 │   ├── resources/
 │   │   └── insurance_kb.job.yml      # Task 3
 │   └── src/
-│       ├── sql_builders.py           # Task 1 (pure helpers)
+│       ├── insurance_kb_sql_builders.py           # Task 1 (pure helpers)
 │       ├── 01_bronze_parse.py        # Task 4
 │       ├── 02_silver_classify.py     # Task 4
 │       ├── 03_prep_search.py         # Task 5
 │       ├── 04_gold_route.py          # Task 5
 │       └── 05_create_indexes.py      # Task 6
 └── tests/
-    └── test_sql_builders.py          # Task 1
+    └── test_insurance_kb_sql_builders.py          # Task 1
 
 scripts/generate_sample_insurance_docs.py   # Task 2
 pyproject.toml                               # Task 1 (add testpath + pythonpath)
@@ -67,8 +67,8 @@ README.md                                    # Task 8 (add project-table row)
 The testable core: the classification label set, the `doc_type→domain` routing map, the `ai_classify` SQL builder (with quote escaping), and the gold-table / index name builders. Everything else imports this module. Full TDD.
 
 **Files:**
-- Create: `insurance-kb-vector-search/bundle/src/sql_builders.py`
-- Create: `insurance-kb-vector-search/tests/test_sql_builders.py`
+- Create: `insurance-kb-vector-search/bundle/src/insurance_kb_sql_builders.py`
+- Create: `insurance-kb-vector-search/tests/test_insurance_kb_sql_builders.py`
 - Modify: `pyproject.toml` (add testpath + pythonpath entries)
 
 **Interfaces:**
@@ -85,16 +85,16 @@ The testable core: the classification label set, the `doc_type→domain` routing
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `insurance-kb-vector-search/tests/test_sql_builders.py`:
+Create `insurance-kb-vector-search/tests/test_insurance_kb_sql_builders.py`:
 
 ```python
-"""Unit tests for the insurance-KB SQL/config builders (bundle/src/sql_builders.py).
+"""Unit tests for the insurance-KB SQL/config builders (bundle/src/insurance_kb_sql_builders.py).
 
 Pure string / dict construction — assert generated SQL and maps, not Spark."""
 
 import json
 
-import sql_builders as S
+import insurance_kb_sql_builders as S
 
 
 # --- label set + domain map ------------------------------------------------
@@ -192,11 +192,11 @@ pythonpath = [
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run: `uv run pytest insurance-kb-vector-search/tests/ -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'sql_builders'` (module not yet created).
+Expected: FAIL — `ModuleNotFoundError: No module named 'insurance_kb_sql_builders'` (module not yet created).
 
 - [ ] **Step 4: Write minimal implementation**
 
-Create `insurance-kb-vector-search/bundle/src/sql_builders.py`:
+Create `insurance-kb-vector-search/bundle/src/insurance_kb_sql_builders.py`:
 
 ```python
 """Pure, unit-testable builders for the insurance-KB vector-search pipeline.
@@ -204,7 +204,7 @@ Create `insurance-kb-vector-search/bundle/src/sql_builders.py`:
 These run on the driver — they assemble the classification label set, the
 doc_type→domain routing map, and SQL-string / name fragments that the stage
 notebooks feed to spark.sql / expr. Keeping them here lets the construction be
-tested without Spark (see tests/test_sql_builders.py)."""
+tested without Spark (see tests/test_insurance_kb_sql_builders.py)."""
 
 import json
 
@@ -313,8 +313,8 @@ Expected: PASS (all tests green). Also run the full suite to confirm no regressi
 - [ ] **Step 6: Commit**
 
 ```bash
-git add insurance-kb-vector-search/bundle/src/sql_builders.py \
-        insurance-kb-vector-search/tests/test_sql_builders.py pyproject.toml
+git add insurance-kb-vector-search/bundle/src/insurance_kb_sql_builders.py \
+        insurance-kb-vector-search/tests/test_insurance_kb_sql_builders.py pyproject.toml
 git commit -m "feat(insurance-kb): pure SQL/config helpers + unit tests"
 ```
 
@@ -330,7 +330,7 @@ Generate 15 fictional insurance PDFs (3 per type) into `sample_data/`, plus a gr
 
 **Interfaces:**
 - Produces: 15 PDFs consumed at runtime by the pipeline (Task 4+), and `ground_truth_doc_types.csv` with header `filename,doc_type,domain`.
-- Consumes: `sql_builders.DOC_TYPE_TO_DOMAIN` is **not** imported here (scripts stay standalone/reportlab-only). The domain column is written from a local literal map that must match the spec's 5-type mapping.
+- Consumes: `insurance_kb_sql_builders.DOC_TYPE_TO_DOMAIN` is **not** imported here (scripts stay standalone/reportlab-only). The domain column is written from a local literal map that must match the spec's 5-type mapping.
 
 - [ ] **Step 1: Read the reference generator**
 
@@ -619,7 +619,7 @@ The first two production stages: parse PDFs to a bronze VARIANT table, then clas
 - Create: `insurance-kb-vector-search/bundle/src/02_silver_classify.py`
 
 **Interfaces:**
-- Consumes: `sql_builders` (`labels_json`, `classify_expr`, `domain_case_expr`, `CLASSIFY_INSTRUCTIONS`); bundle `base_parameters`.
+- Consumes: `insurance_kb_sql_builders` (`labels_json`, `classify_expr`, `domain_case_expr`, `CLASSIFY_INSTRUCTIONS`); bundle `base_parameters`.
 - Produces tables: `{prefix}_bronze_parsed` (cols `source_path STRING, parsed VARIANT, parse_error STRING, ingested_at TIMESTAMP`) and `{prefix}_silver_classified` (cols `source_path, parsed, classification_raw VARIANT, doc_type STRING, domain STRING`).
 
 - [ ] **Step 1: Write `01_bronze_parse.py`**
@@ -687,9 +687,9 @@ Classify on the parsed VARIANT directly (documented; demo docs are small so the 
 
 # COMMAND ----------
 
-# sql_builders.py is co-located in src/; Databricks puts the notebook's own
+# insurance_kb_sql_builders.py is co-located in src/; Databricks puts the notebook's own
 # directory on sys.path, so a plain import works (matches the other bundles).
-import sql_builders as S
+import insurance_kb_sql_builders as S
 
 dbutils.widgets.text("catalog", "fins_genai")
 dbutils.widgets.text("schema", "unstructured_documents")
@@ -736,7 +736,7 @@ n = spark.table(silver_table).count()
 dbutils.notebook.exit(f"classified={n}")
 ```
 
-> **Note on the import:** `sql_builders.py` sits in `src/` beside the stage notebooks; the other bundles in this repo (`document-page-classify-extraction/bundle/src/05_gold_merge.py`) import it with a plain `from sql_builders import ...` and no `sys.path` manipulation — Databricks adds the notebook's own directory to `sys.path`. Follow that exact pattern; do **not** add `sys.path.append("../")` (that points to `bundle/`, not `src/`).
+> **Note on the import:** `insurance_kb_sql_builders.py` sits in `src/` beside the stage notebooks; the other bundles in this repo (`document-page-classify-extraction/bundle/src/05_gold_merge.py`) import it with a plain `from insurance_kb_sql_builders import ...` and no `sys.path` manipulation — Databricks adds the notebook's own directory to `sys.path`. Follow that exact pattern; do **not** add `sys.path.append("../")` (that points to `bundle/`, not `src/`).
 
 - [ ] **Step 3: Validate the bundle**
 
@@ -762,7 +762,7 @@ Chunk with `ai_prep_search`, then route chunks into two CDF-enabled gold tables 
 - Create: `insurance-kb-vector-search/bundle/src/04_gold_route.py`
 
 **Interfaces:**
-- Consumes: `{prefix}_silver_classified`; `sql_builders.gold_table_name`.
+- Consumes: `{prefix}_silver_classified`; `insurance_kb_sql_builders.gold_table_name`.
 - Produces: `{prefix}_prepped_chunks` (cols `chunk_id STRING, chunk_position INT, chunk_to_retrieve STRING, chunk_to_embed STRING, doc_type STRING, domain STRING, source_path STRING, prepped_at TIMESTAMP`), and two gold tables `{prefix}_reference_chunks` / `{prefix}_claims_chunks` (same columns minus `domain`, CDF enabled, `chunk_id` NOT NULL + PK).
 
 - [ ] **Step 1: Write `03_prep_search.py`**
@@ -830,7 +830,7 @@ dbutils.notebook.exit(f"chunks={cnt}")
 # COMMAND ----------
 
 # Co-located import (Databricks adds the notebook dir to sys.path).
-import sql_builders as S
+import insurance_kb_sql_builders as S
 
 dbutils.widgets.text("catalog", "fins_genai")
 dbutils.widgets.text("schema", "unstructured_documents")
@@ -886,7 +886,7 @@ Final production stage: ensure the shared endpoint exists, then create/refresh o
 - Create: `insurance-kb-vector-search/bundle/src/05_create_indexes.py`
 
 **Interfaces:**
-- Consumes: `{prefix}_reference_chunks`, `{prefix}_claims_chunks`; `sql_builders.gold_table_name`, `sql_builders.index_name`; params `vs_endpoint`, `embedding_model`.
+- Consumes: `{prefix}_reference_chunks`, `{prefix}_claims_chunks`; `insurance_kb_sql_builders.gold_table_name`, `insurance_kb_sql_builders.index_name`; params `vs_endpoint`, `embedding_model`.
 - Produces: endpoint `insurance_kb_vs`; indexes `{prefix}_reference_index`, `{prefix}_claims_index`.
 
 - [ ] **Step 1: Write `05_create_indexes.py`**
@@ -901,7 +901,7 @@ Final production stage: ensure the shared endpoint exists, then create/refresh o
 # COMMAND ----------
 
 import time
-import sql_builders as S  # co-located in src/ (Databricks adds notebook dir to sys.path)
+import insurance_kb_sql_builders as S  # co-located in src/ (Databricks adds notebook dir to sys.path)
 from databricks.sdk import WorkspaceClient
 
 dbutils.widgets.text("catalog", "fins_genai")
@@ -998,7 +998,7 @@ Port each src stage into a step notebook under `notebooks/` — the repo's illus
 - Create: `insurance-kb-vector-search/notebooks/05_create_vector_indexes.py`
 
 **Interfaces:**
-- Consumes the same tables/params as Tasks 4–6. For the helper import in notebooks 02/04/05, copy the small helper functions inline OR `sys.path.append` to `../bundle/src`; prefer inline copies of the 2–3 needed strings so the notebooks are self-contained demos (the canonical, tested versions live in `bundle/src/sql_builders.py`).
+- Consumes the same tables/params as Tasks 4–6. For the helper import in notebooks 02/04/05, copy the small helper functions inline OR `sys.path.append` to `../bundle/src`; prefer inline copies of the 2–3 needed strings so the notebooks are self-contained demos (the canonical, tested versions live in `bundle/src/insurance_kb_sql_builders.py`).
 
 - [ ] **Step 1: Write `01_parse_documents.py`**
 
@@ -1010,7 +1010,7 @@ Drop the `dbutils.notebook.exit(...)` line.
 
 - [ ] **Step 2: Write `02_classify_documents.py`**
 
-Copy the `classify_sql`/`domain_sql` construction and the silver `CREATE OR REPLACE TABLE` from `bundle/src/02_silver_classify.py`, inlining the label JSON + instructions + `domain_case_expr` logic (copy the literal strings/CASE from `sql_builders.py`). Add a `%md` cell and end with:
+Copy the `classify_sql`/`domain_sql` construction and the silver `CREATE OR REPLACE TABLE` from `bundle/src/02_silver_classify.py`, inlining the label JSON + instructions + `domain_case_expr` logic (copy the literal strings/CASE from `insurance_kb_sql_builders.py`). Add a `%md` cell and end with:
 ```python
 spark.table(silver_table).selectExpr("source_path", "doc_type", "domain").display()
 ```
