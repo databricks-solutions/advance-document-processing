@@ -687,8 +687,8 @@ Classify on the parsed VARIANT directly (documented; demo docs are small so the 
 
 # COMMAND ----------
 
-import sys
-sys.path.append("../")  # so `import sql_builders` resolves when run from src/
+# sql_builders.py is co-located in src/; Databricks puts the notebook's own
+# directory on sys.path, so a plain import works (matches the other bundles).
 import sql_builders as S
 
 dbutils.widgets.text("catalog", "fins_genai")
@@ -736,7 +736,7 @@ n = spark.table(silver_table).count()
 dbutils.notebook.exit(f"classified={n}")
 ```
 
-> **Note on `sys.path.append("../")`:** the bundle uploads `src/` as a workspace directory; `sql_builders.py` sits beside the stage notebooks, so `../` from the notebook's run dir resolves to `src/`. If the executor finds imports don't resolve in the serverless run, the fallback is `sys.path.append(os.path.dirname(...))` using the notebook path — validate during the first real run.
+> **Note on the import:** `sql_builders.py` sits in `src/` beside the stage notebooks; the other bundles in this repo (`document-page-classify-extraction/bundle/src/05_gold_merge.py`) import it with a plain `from sql_builders import ...` and no `sys.path` manipulation — Databricks adds the notebook's own directory to `sys.path`. Follow that exact pattern; do **not** add `sys.path.append("../")` (that points to `bundle/`, not `src/`).
 
 - [ ] **Step 3: Validate the bundle**
 
@@ -829,8 +829,7 @@ dbutils.notebook.exit(f"chunks={cnt}")
 
 # COMMAND ----------
 
-import sys
-sys.path.append("../")
+# Co-located import (Databricks adds the notebook dir to sys.path).
 import sql_builders as S
 
 dbutils.widgets.text("catalog", "fins_genai")
@@ -901,9 +900,8 @@ Final production stage: ensure the shared endpoint exists, then create/refresh o
 
 # COMMAND ----------
 
-import sys, time
-sys.path.append("../")
-import sql_builders as S
+import time
+import sql_builders as S  # co-located in src/ (Databricks adds notebook dir to sys.path)
 from databricks.sdk import WorkspaceClient
 
 dbutils.widgets.text("catalog", "fins_genai")
