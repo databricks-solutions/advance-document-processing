@@ -68,6 +68,41 @@ def test_domain_case_expr_maps_both_domains():
     assert "ELSE 'unknown'" in sql
 
 
+# --- doc_text_expr ---------------------------------------------------------
+
+def test_doc_text_expr_default_args():
+    sql = S.doc_text_expr()
+    assert sql.startswith("substr(")
+    assert "array_join(" in sql
+    assert ":pages[*].elements[*].content" in sql
+    assert "1, 12000" in sql
+
+
+def test_doc_text_expr_default_parsed_col():
+    sql = S.doc_text_expr()
+    # default parsed_col is "parsed"
+    assert "parsed:pages[*].elements[*].content" in sql
+
+
+def test_doc_text_expr_custom_col():
+    sql = S.doc_text_expr(parsed_col="my_col")
+    assert "my_col:pages[*].elements[*].content" in sql
+    assert "1, 12000" in sql
+
+
+def test_doc_text_expr_custom_max_chars():
+    sql = S.doc_text_expr(max_chars=5000)
+    assert "1, 5000" in sql
+    assert "12000" not in sql
+
+
+def test_doc_text_expr_custom_col_and_max_chars():
+    sql = S.doc_text_expr(parsed_col="raw", max_chars=8192)
+    assert "raw:pages[*].elements[*].content" in sql
+    assert "1, 8192" in sql
+    assert "12000" not in sql
+
+
 # --- name builders ---------------------------------------------------------
 
 def test_gold_table_name():

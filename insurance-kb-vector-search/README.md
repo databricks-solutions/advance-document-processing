@@ -79,7 +79,7 @@ unit-testable without a Databricks connection.
 | # | Notebook (interactive) | Bundle src (batch) | Output table |
 |---|---|---|---|
 | 1 | `01_parse_documents.py` | `01_bronze_parse.py` | `*_bronze_parsed` — `(source_path, parsed VARIANT, parse_error)` |
-| 2 | `02_classify_documents.py` | `02_silver_classify.py` | `*_silver_classified` — adds `doc_type`, `domain`, `classify_error` |
+| 2 | `02_classify_documents.py` | `02_silver_classify.py` | `*_silver_classified` — adds `doc_type`, `domain`, `classification_raw` |
 | 3 | `03_prep_search_chunks.py` | `03_prep_search.py` | `*_prepped_chunks` — exploded chunk rows with `chunk_id`, `chunk_position`, `chunk_to_retrieve`, `chunk_to_embed` |
 | 4 | `04_route_gold_tables.py` | `04_gold_route.py` | `*_reference_chunks`, `*_claims_chunks` — CDF-enabled gold tables per domain |
 | 5 | `05_create_vector_indexes.py` | `05_create_indexes.py` | `*_reference_index`, `*_claims_index` — Delta Sync Vector Search indexes |
@@ -158,9 +158,8 @@ Source PDFs live at:
 
 - Databricks workspace with **Unity Catalog**, **Serverless Jobs**, and
   **Vector Search** enabled.
-- **Serverless environment version 5** (recommended; required for
-  `ai_prep_search`) — equivalent to **DBR 18.2+**. `ai_parse_document`
-  requires DBR 17.3+ / env v3+.
+- `ai_prep_search` requires **serverless environment v3+ / DBR 18.2+**; env 5
+  is recommended. `ai_parse_document` requires DBR 17.3+ / env v3+.
 - Region that supports `ai_parse_document` / `ai_prep_search` batch AI
   inference (check the Databricks regional availability docs if you see a
   "function not available" error).
@@ -232,17 +231,41 @@ Or run the full repo suite from the root:
 uv run pytest
 ```
 
-## Batch design: idempotent, manual trigger
+## Batch design: manual trigger
 
 The bundle is a batch pipeline — the intended workflow is
 *upload PDFs → run job → query the indexes*:
 
 - Stages 1–4 rebuild their outputs with `CREATE OR REPLACE` / overwrite, so
-  every run reprocesses the whole Volume subdir and is idempotent.
+  every run reprocesses the whole Volume subdir. Note that a full re-run
+  recreates the gold tables via `CREATE OR REPLACE`; only the create_indexes
+  stage (Stage 5) syncs existing indexes rather than recreating them.
 - Stage 5 is create-if-not-exists for the Vector Search endpoint and
-  create-or-sync for both indexes (idempotent across reruns).
+  create-or-sync for both indexes (safe across reruns).
 - Change Data Feed is enabled on both gold tables so the Delta Sync indexes
   can pick up incremental updates on subsequent runs.
+
+### First run: verify output
+
+After `bundle run` completes, confirm the pipeline produced results:
+
+```sql
+-- Check classification worked
+SELECT doc_type, domain, COUNT(*) FROM fins_genai.unstructured_documents.insurance_kb_silver_classified
+GROUP BY doc_type, domain;
+```
+
+If `doc_type` is null or empty, verify that `ai_classify`'s return shape matches
+`classification_raw:response[0]::string` in your workspace. Also confirm the
+parsed-VARIANT text path (`parsed:pages[*].elements[*].content`) returns
+non-empty text for your documents — some `ai_parse_document` versions nest
+content under `document` rather than `pages` at the top level.
+
+```sql
+-- Check both gold chunk tables are non-empty
+SELECT COUNT(*) FROM fins_genai.unstructured_documents.insurance_kb_reference_chunks;
+SELECT COUNT(*) FROM fins_genai.unstructured_documents.insurance_kb_claims_chunks;
+```
 
 ## Related assets
 

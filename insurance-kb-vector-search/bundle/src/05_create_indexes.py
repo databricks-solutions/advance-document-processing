@@ -45,6 +45,8 @@ for _ in range(60):
     if str(state) == "ONLINE":
         break
     time.sleep(30)
+else:
+    raise RuntimeError(f"Vector Search endpoint {vs_endpoint} did not reach ONLINE in time")
 
 # COMMAND ----------
 # MAGIC %md ## Create or sync one index per gold table

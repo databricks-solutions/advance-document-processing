@@ -59,7 +59,7 @@ the repo root with `uv run pytest` (pure Python, no Databricks required).
   serverless env **5** is recommended (used by the streaming bundles)
 - DBR **18.2+** (serverless env **3+**) for `ai_extract` 2.1 with citations +
   confidence scores (page classify-extract and word-level-citation pipelines)
-- DBR **18.2+** / serverless env **5** for `ai_prep_search` (insurance-kb-vector-search
+- DBR **18.2+** / serverless env **3+** for `ai_prep_search` (insurance-kb-vector-search
   pipeline); env 5 is the recommended compute for all new batch bundles
 - Databricks CLI **v0.205+** (the unified CLI) for `bundle` and `fs` commands
 - A multimodal serving endpoint for chart analysis (default

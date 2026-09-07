@@ -133,7 +133,14 @@ print(f"silver_table = {silver_table}")
 
 # COMMAND ----------
 
-classify_sql = classify_expr("parsed", labels_json(), CLASSIFY_INSTRUCTIONS)
+# Classify on a bounded text slice, not the full parsed VARIANT, to stay under
+# ai_classify's 128k-token cap and avoid feeding layout JSON to the classifier.
+doc_text_sql = (
+    "substr("
+    "array_join(cast(parsed:pages[*].elements[*].content as array<string>), '\\n'), "
+    "1, 12000)"
+)
+classify_sql = classify_expr(doc_text_sql, labels_json(), CLASSIFY_INSTRUCTIONS)
 domain_sql   = domain_case_expr("classification_raw:response[0]::string")
 
 spark.sql(f"""
@@ -155,7 +162,6 @@ SELECT
 FROM classified
 """)
 
-from pyspark.sql.functions import col
 counts = spark.table(silver_table).groupBy("doc_type", "domain").count()
 counts.show(truncate=False)
 n = spark.table(silver_table).count()

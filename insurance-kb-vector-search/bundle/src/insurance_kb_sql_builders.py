@@ -3,7 +3,7 @@
 These run on the driver — they assemble the classification label set, the
 doc_type→domain routing map, and SQL-string / name fragments that the stage
 notebooks feed to spark.sql / expr. Keeping them here lets the construction be
-tested without Spark (see tests/test_sql_builders.py)."""
+tested without Spark (see tests/test_insurance_kb_sql_builders.py)."""
 
 import json
 
@@ -64,6 +64,21 @@ def labels_json():
 def domain_for(doc_type):
     """Retrieval domain for a doc_type; 'unknown' if unrecognized."""
     return DOC_TYPE_TO_DOMAIN.get(doc_type, "unknown")
+
+
+def doc_text_expr(parsed_col="parsed", max_chars=12000):
+    """SQL: bounded, document-level text slice from an ai_parse_document VARIANT
+    for classification input (avoids the ai_classify token cap + layout-JSON noise).
+
+    The VARIANT path ``:pages[*].elements[*].content`` follows the documented
+    ai_parse_document output schema. Verify this path against your workspace's
+    actual parse output on first run — some parse versions nest content under
+    ``document`` rather than ``pages`` at the top level."""
+    return (
+        f"substr("
+        f"array_join(cast({parsed_col}:pages[*].elements[*].content as array<string>), '\\n'), "
+        f"1, {max_chars})"
+    )
 
 
 def classify_expr(input_col, labels_sql_json, instructions):

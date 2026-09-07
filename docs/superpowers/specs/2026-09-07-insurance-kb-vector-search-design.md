@@ -100,8 +100,9 @@ bounded text slice — not the whole VARIANT — keeps input under the `ai_class
 - `domain` is derived from `doc_type` via the routing map.
 
 ```
-silver_classified: source_path, doc_type, domain, parsed, classify_error
+silver_classified: source_path, parsed, classification_raw, doc_type, domain
 ```
+(note: `error_message` is derivable from `classification_raw:error_message`; no separate error column)
 
 Rows that fail to parse or classify are filtered out before Stage 3.
 
