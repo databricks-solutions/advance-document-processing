@@ -1,0 +1,77 @@
+resources:
+  jobs:
+    insurance_kb_vector_search:
+      name: "[${bundle.target}] Insurance KB Parse-Classify-Prep-Index"
+
+      max_concurrent_runs: 1
+
+      # Serverless notebook environment pinned to env version 5
+      # (ai_parse_document needs env v3+; ai_prep_search needs env v3+ / DBR 18.2+)
+      environments:
+        - environment_key: serverless_v5
+          spec:
+            client: "5"
+
+      tasks:
+        - task_key: bronze_parse
+          environment_key: serverless_v5
+          notebook_task:
+            notebook_path: ../src/01_bronze_parse.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: silver_classify
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: bronze_parse
+          notebook_task:
+            notebook_path: ../src/02_silver_classify.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: prep_search
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: silver_classify
+          notebook_task:
+            notebook_path: ../src/03_prep_search.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: gold_route
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: prep_search
+          notebook_task:
+            notebook_path: ../src/04_gold_route.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+              volume_subdir: ${var.volume_subdir}
+              table_prefix: ${var.table_prefix}
+
+        - task_key: create_indexes
+          environment_key: serverless_v5
+          depends_on:
+            - task_key: gold_route
+          notebook_task:
+            notebook_path: ../src/05_create_indexes.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              table_prefix: ${var.table_prefix}
+              vs_endpoint: ${var.vs_endpoint}
+              embedding_model: ${var.embedding_model}
