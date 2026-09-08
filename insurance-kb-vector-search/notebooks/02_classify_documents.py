@@ -137,7 +137,10 @@ print(f"silver_table = {silver_table}")
 # ai_classify's 128k-token cap and avoid feeding layout JSON to the classifier.
 doc_text_sql = (
     "substr("
-    "array_join(cast(parsed:pages[*].elements[*].content as array<string>), '\\n'), "
+    "array_join("
+    "transform(cast(parsed:document:elements as array<variant>), "
+    "e -> cast(e:content as string)), "
+    "char(10)), "
     "1, 12000)"
 )
 classify_sql = classify_expr(doc_text_sql, labels_json(), CLASSIFY_INSTRUCTIONS)

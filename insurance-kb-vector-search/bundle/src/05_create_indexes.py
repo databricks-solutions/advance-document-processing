@@ -8,6 +8,14 @@
 
 import time
 import insurance_kb_sql_builders as S  # co-located in src/ (Databricks adds notebook dir to sys.path)
+# databricks-sdk create_index wants typed spec objects (it calls .as_dict() on them),
+# not raw dicts — import the vectorsearch dataclasses/enums.
+from databricks.sdk.service.vectorsearch import (
+    DeltaSyncVectorIndexSpecRequest,
+    EmbeddingSourceColumn,
+    PipelineType,
+    VectorIndexType,
+)
 from databricks.sdk import WorkspaceClient
 
 dbutils.widgets.text("catalog", "fins_genai")
@@ -40,9 +48,12 @@ if vs_endpoint not in existing:
 # adjust status-poll/list accessors if the SDK differs.
 for _ in range(60):
     ep = w.vector_search_endpoints.get_endpoint(endpoint_name=vs_endpoint)
-    state = ep.endpoint_status.state if ep.endpoint_status else None
+    raw_state = ep.endpoint_status.state if ep.endpoint_status else None
+    # state is an SDK enum (EndpointStatusState.ONLINE) — its .value is the
+    # bare string "ONLINE"; a plain string falls through unchanged.
+    state = getattr(raw_state, "value", None) or str(raw_state)
     print(f"endpoint state = {state}")
-    if str(state) == "ONLINE":
+    if state == "ONLINE":
         break
     time.sleep(30)
 else:
@@ -56,7 +67,8 @@ else:
 for domain in ("reference", "claims"):
     src_table = f"{catalog}.{schema}.{S.gold_table_name(table_prefix, domain)}"
     idx = S.index_name(catalog, schema, table_prefix, domain)
-    existing_idx = [i.name for i in (w.vector_search_indexes.list_indexes(endpoint_name=vs_endpoint).vector_indexes or [])]
+    # list_indexes yields MiniVectorIndex items directly (a generator) — iterate it.
+    existing_idx = [i.name for i in w.vector_search_indexes.list_indexes(endpoint_name=vs_endpoint)]
     if idx in existing_idx:
         print(f"syncing existing index {idx} ...")
         w.vector_search_indexes.sync_index(index_name=idx)
@@ -66,15 +78,17 @@ for domain in ("reference", "claims"):
             name=idx,
             endpoint_name=vs_endpoint,
             primary_key="chunk_id",
-            index_type="DELTA_SYNC",
-            delta_sync_index_spec={
-                "source_table": src_table,
-                "embedding_source_columns": [
-                    {"name": "chunk_to_embed",
-                     "embedding_model_endpoint_name": embedding_model}
+            index_type=VectorIndexType.DELTA_SYNC,
+            delta_sync_index_spec=DeltaSyncVectorIndexSpecRequest(
+                source_table=src_table,
+                pipeline_type=PipelineType.TRIGGERED,
+                embedding_source_columns=[
+                    EmbeddingSourceColumn(
+                        name="chunk_to_embed",
+                        embedding_model_endpoint_name=embedding_model,
+                    )
                 ],
-                "pipeline_type": "TRIGGERED",
-            },
+            ),
         )
 
 print("index creation/sync submitted.")

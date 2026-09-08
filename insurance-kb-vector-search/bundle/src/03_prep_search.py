@@ -30,7 +30,8 @@ WITH prepped AS (
 chunks AS (
   SELECT
     source_path, doc_type, domain,
-    explode(variant_get(prep, '$.chunks', 'ARRAY<VARIANT>')) AS chunk
+    -- ai_prep_search nests chunks at $.document.contents (not $.chunks)
+    explode(variant_get(prep, '$.document.contents', 'ARRAY<VARIANT>')) AS chunk
   FROM prepped
 )
 SELECT

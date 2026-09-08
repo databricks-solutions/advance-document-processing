@@ -68,15 +68,19 @@ def domain_for(doc_type):
 
 def doc_text_expr(parsed_col="parsed", max_chars=12000):
     """SQL: bounded, document-level text slice from an ai_parse_document VARIANT
-    for classification input (avoids the ai_classify token cap + layout-JSON noise).
+    for classification input (keeps ai_classify under its token cap and avoids
+    feeding layout metadata to the classifier).
 
-    The VARIANT path ``:pages[*].elements[*].content`` follows the documented
-    ai_parse_document output schema. Verify this path against your workspace's
-    actual parse output on first run — some parse versions nest content under
-    ``document`` rather than ``pages`` at the top level."""
+    Concatenates the element contents at ``<parsed>:document:elements[].content``.
+    ``variant_get`` does not support the ``[*]`` array wildcard, so the elements
+    array is cast to ``array<variant>`` and walked with ``transform``; ``char(10)``
+    joins them (no escape-sequence ambiguity)."""
     return (
         f"substr("
-        f"array_join(cast({parsed_col}:pages[*].elements[*].content as array<string>), '\\n'), "
+        f"array_join("
+        f"transform(cast({parsed_col}:document:elements as array<variant>), "
+        f"e -> cast(e:content as string)), "
+        f"char(10)), "
         f"1, {max_chars})"
     )
 
