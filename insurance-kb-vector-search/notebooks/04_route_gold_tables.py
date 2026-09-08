@@ -45,17 +45,28 @@ print(f"prepped_table = {prepped_table}")
 for domain in ("reference", "claims"):
     gold = f"{catalog}.{schema}.{table_prefix}_{domain}_chunks"
     print(f"building {gold} ...")
+    # CREATE-IF-NOT-EXISTS (schema + NOT-NULL PK + CDF) then INSERT OVERWRITE keeps
+    # the table identity + CDF continuity stable across re-runs, so the Delta Sync
+    # index keeps syncing instead of failing on a replaced table's incompatible CDF.
     spark.sql(f"""
-    CREATE OR REPLACE TABLE {gold}
-    TBLPROPERTIES (delta.enableChangeDataFeed = true) AS
+    CREATE TABLE IF NOT EXISTS {gold} (
+        chunk_id          STRING NOT NULL,
+        chunk_position    INT,
+        chunk_to_retrieve STRING,
+        chunk_to_embed    STRING,
+        doc_type          STRING,
+        source_path       STRING,
+        prepped_at        TIMESTAMP,
+        CONSTRAINT {table_prefix}_{domain}_pk PRIMARY KEY (chunk_id)
+    ) TBLPROPERTIES (delta.enableChangeDataFeed = true)
+    """)
+    spark.sql(f"""
+    INSERT OVERWRITE {gold}
     SELECT chunk_id, chunk_position, chunk_to_retrieve, chunk_to_embed,
            doc_type, source_path, prepped_at
     FROM {prepped_table}
     WHERE domain = '{domain}'
     """)
-    # Vector Search Delta Sync wants a non-null primary key.
-    spark.sql(f"ALTER TABLE {gold} ALTER COLUMN chunk_id SET NOT NULL")
-    spark.sql(f"ALTER TABLE {gold} ADD CONSTRAINT {table_prefix}_{domain}_pk PRIMARY KEY (chunk_id)")
     print(f"  rows = {spark.table(gold).count()}")
 
 # COMMAND ----------
