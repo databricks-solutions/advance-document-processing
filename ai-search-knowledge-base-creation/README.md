@@ -247,8 +247,12 @@ The bundle is a batch pipeline — the intended workflow is
 - Stage 5 is create-if-not-exists for the Vector Search endpoint and
   create-or-sync for both indexes; combined with the CDF-safe gold tables, the
   indexes sync cleanly on every re-run.
-- Change Data Feed is enabled on both gold tables so the Delta Sync indexes
-  pick up each run's updates.
+- Change Data Feed is required for Delta Sync and is enabled on both gold
+  tables. Note that Stage 4's `INSERT OVERWRITE` rewrites every row, so each run
+  is a **full refresh** — the CDF reports all rows changed and the index
+  re-embeds the whole table (not an incremental update). The value of the
+  `CREATE IF NOT EXISTS` + `INSERT OVERWRITE` pattern is stable table identity /
+  CDF continuity (so the index keeps syncing), not a re-embedding cost saving.
 
 ### First run: verify output
 

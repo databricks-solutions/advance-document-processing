@@ -39,7 +39,8 @@
 # COMMAND ----------
 
 # DBTITLE 1,Step 2: Infer page number from parsed content
-# MAGIC %sql --name pages_with_inferred_order
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TEMPORARY VIEW pages_with_inferred_order AS
 # MAGIC WITH page_number_elements AS (
 # MAGIC   -- Extract the printed page number from 'page_number' type elements
 # MAGIC   SELECT
@@ -59,7 +60,8 @@
 # MAGIC   WHERE is_variant_null(parsed:error_status)
 # MAGIC ),
 # MAGIC ai_fallback AS (
-# MAGIC   -- For pages where no page_number element was found, use ai_extract
+# MAGIC   -- For pages with no page_number element, ask ai_extract to read it.
+# MAGIC   -- ai_extract v2.1 nests scalars at $.response.<field>.value.
 # MAGIC   SELECT
 # MAGIC     file_name,
 # MAGIC     parsed,
@@ -71,23 +73,24 @@
 # MAGIC           parsed,
 # MAGIC           '{"page_number": {"type": "integer", "description": "The printed page number shown on this page, e.g. in the header or footer"}}',
 # MAGIC           MAP('version', '2.1')
-# MAGIC         ):page_number::STRING
+# MAGIC         ):response.page_number.value::STRING
 # MAGIC       AS INT)
 # MAGIC     END AS page_num_with_fallback
 # MAGIC   FROM page_number_elements
 # MAGIC )
 # MAGIC SELECT
 # MAGIC   file_name,
-# MAGIC   inferred_page_num          AS from_page_element,
-# MAGIC   page_num_with_fallback     AS from_ai_fallback,
-# MAGIC   -- Final: use ai_extract result, or fall back to row_number by filename sort
-# MAGIC   COALESCE(
-# MAGIC     page_num_with_fallback,
-# MAGIC     ROW_NUMBER() OVER (ORDER BY file_name)
+# MAGIC   inferred_page_num       AS from_page_element,
+# MAGIC   page_num_with_fallback  AS from_ai_fallback,
+# MAGIC   -- Assign a contiguous 1..N order: pages with a known page number come
+# MAGIC   -- first (in that order), then any unresolved pages appended in filename
+# MAGIC   -- order. ROW_NUMBER over that sort key avoids the duplicate-page_num
+# MAGIC   -- collisions a COALESCE(page_num, ROW_NUMBER()) fallback would produce.
+# MAGIC   ROW_NUMBER() OVER (
+# MAGIC     ORDER BY COALESCE(page_num_with_fallback, 2147483647), file_name
 # MAGIC   ) AS final_page_num,
 # MAGIC   parsed
-# MAGIC FROM ai_fallback
-# MAGIC ORDER BY final_page_num;
+# MAGIC FROM ai_fallback;
 
 # COMMAND ----------
 
