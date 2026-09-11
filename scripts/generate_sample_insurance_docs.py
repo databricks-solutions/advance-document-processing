@@ -1,13 +1,13 @@
 """Generate synthetic, fully fictional insurance PDFs for the
-insurance-kb-vector-search pipeline.
+ai-search-knowledge-base-creation pipeline.
 
 3 documents per type x 5 types = 15 PDFs, plus ground_truth_doc_types.csv.
 Deterministic (seeded) so filenames are stable across regenerations.
 
 Run (from repo root):
     uv run --with reportlab python scripts/generate_sample_insurance_docs.py
-Output: insurance-kb-vector-search/sample_data/<doc_type>_<n>_<slug>.pdf
-        insurance-kb-vector-search/sample_data/ground_truth_doc_types.csv
+Output: ai-search-knowledge-base-creation/sample_data/<doc_type>_<n>_<slug>.pdf
+        ai-search-knowledge-base-creation/sample_data/ground_truth_doc_types.csv
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from reportlab.platypus import (
 
 OUT_DIR = (
     Path(__file__).resolve().parent.parent
-    / "insurance-kb-vector-search"
+    / "ai-search-knowledge-base-creation"
     / "sample_data"
 )
 

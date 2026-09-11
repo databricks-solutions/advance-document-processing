@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # 02 — Classify Documents: `ai_classify`
 # MAGIC
@@ -27,6 +31,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 2
 import json
 
 # ---------------------------------------------------------------------------
@@ -95,7 +100,7 @@ def classify_expr(input_col, labels_sql_json, instructions):
         ai_classify(
             {input_col},
             '{labels_sql}',
-            map('instructions', '{instr_sql}')
+            map('version', '2.1', 'instructions', '{instr_sql}')
         )
     """
 
@@ -133,18 +138,11 @@ print(f"silver_table = {silver_table}")
 
 # COMMAND ----------
 
-# Classify on a bounded text slice, not the full parsed VARIANT, to stay under
-# ai_classify's 128k-token cap and avoid feeding layout JSON to the classifier.
-doc_text_sql = (
-    "substr("
-    "array_join("
-    "transform(cast(parsed:document:elements as array<variant>), "
-    "e -> cast(e:content as string)), "
-    "char(10)), "
-    "1, 12000)"
-)
-classify_sql = classify_expr(doc_text_sql, labels_json(), CLASSIFY_INSTRUCTIONS)
-domain_sql   = domain_case_expr("classification_raw:response[0]::string")
+# DBTITLE 1,Cell 4
+# v2.1 accepts the parsed VARIANT directly — structural metadata (titles,
+# tables, sections) that text extraction would discard is preserved.
+classify_sql = classify_expr("parsed", labels_json(), CLASSIFY_INSTRUCTIONS)
+domain_sql   = domain_case_expr("classification_raw:response[0].value::string")
 
 spark.sql(f"""
 CREATE OR REPLACE TABLE {silver_table} AS
@@ -160,7 +158,7 @@ SELECT
   source_path,
   parsed,
   classification_raw,
-  classification_raw:response[0]::string AS doc_type,
+  classification_raw:response[0].value::string AS doc_type,
   {domain_sql} AS domain
 FROM classified
 """)

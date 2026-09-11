@@ -13,6 +13,7 @@ import insurance_kb_sql_builders as S  # co-located in src/ (Databricks adds not
 from databricks.sdk.service.vectorsearch import (
     DeltaSyncVectorIndexSpecRequest,
     EmbeddingSourceColumn,
+    EndpointType,
     PipelineType,
     VectorIndexType,
 )
@@ -40,12 +41,11 @@ w = WorkspaceClient()
 existing = [e.name for e in (w.vector_search_endpoints.list_endpoints() or [])]
 if vs_endpoint not in existing:
     print(f"creating endpoint {vs_endpoint} ...")
-    w.vector_search_endpoints.create_endpoint(name=vs_endpoint, endpoint_type="STANDARD")
+    w.vector_search_endpoints.create_endpoint(name=vs_endpoint, endpoint_type=EndpointType.STANDARD)
 
-# Poll until ONLINE (endpoint creation is asynchronous).
-# NOTE: exact attribute names (endpoint_status.state, list_indexes(...).vector_indexes, .name)
-# should be confirmed against the installed databricks-sdk version on first run;
-# adjust status-poll/list accessors if the SDK differs.
+# Poll until ONLINE (endpoint creation is asynchronous). Accessors below are
+# verified against databricks-sdk on this workspace: endpoint_status.state is an
+# enum (read .value), and list_indexes(...) yields MiniVectorIndex items directly.
 for _ in range(60):
     ep = w.vector_search_endpoints.get_endpoint(endpoint_name=vs_endpoint)
     raw_state = ep.endpoint_status.state if ep.endpoint_status else None

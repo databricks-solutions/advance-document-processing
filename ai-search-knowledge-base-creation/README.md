@@ -95,9 +95,10 @@ All names are keyed off `table_prefix` in `catalog.schema`:
 
 - **`*_bronze_parsed`** — one row per source PDF; `parsed` VARIANT from
   `ai_parse_document`.
-- **`*_silver_classified`** — adds `doc_type` (one of the five labels) and
-  `domain` (`reference` or `claims`); rows that fail to parse or classify are
-  excluded downstream.
+- **`*_silver_classified`** — adds `doc_type` (one of the five labels, from
+  `ai_classify` **v2.1** run on the full parsed VARIANT — a 1M-token window, so
+  no text pre-slicing) and `domain` (`reference` or `claims`); rows that fail to
+  parse or classify are excluded downstream.
 - **`*_prepped_chunks`** — exploded chunk rows from `ai_prep_search`, with
   `doc_type` and `source_path` carried through.
 - **`*_reference_chunks`** / **`*_claims_chunks`** — gold tables (CDF enabled)
@@ -114,7 +115,7 @@ layer here (see the Related assets section for follow-up possibilities).
 ## Directory layout
 
 ```
-insurance-kb-vector-search/
+ai-search-knowledge-base-creation/
 ├── notebooks/                              # Interactive/illustrative flavor
 │   ├── 01_parse_documents.py               # Stage 1: ai_parse_document → bronze
 │   ├── 02_classify_documents.py            # Stage 2: ai_classify → doc_type + domain
@@ -185,7 +186,7 @@ uv run --with reportlab python scripts/generate_sample_insurance_docs.py
 
 This writes 15 synthetic insurance PDFs (3 per type × 5 types) and
 `sample_data/ground_truth_doc_types.csv` into
-`insurance-kb-vector-search/sample_data/`.
+`ai-search-knowledge-base-creation/sample_data/`.
 
 ### 2. Upload PDFs to the UC Volume
 
@@ -196,13 +197,13 @@ scripts/upload_pdfs.sh \
   -s unstructured_documents \
   -v pdf_examples \
   -f insurance_docs \
-  -i insurance-kb-vector-search/sample_data
+  -i ai-search-knowledge-base-creation/sample_data
 ```
 
 ### 3. Deploy the bundle
 
 ```bash
-cd insurance-kb-vector-search/bundle
+cd ai-search-knowledge-base-creation/bundle
 databricks bundle deploy -t dev --profile fevm-classic-stable
 ```
 
@@ -222,7 +223,7 @@ Unit tests cover the pure-Python helpers in `insurance_kb_sql_builders.py`
 required:
 
 ```bash
-uv run pytest insurance-kb-vector-search/tests/ -v
+uv run pytest ai-search-knowledge-base-creation/tests/ -v
 ```
 
 Or run the full repo suite from the root:
@@ -236,14 +237,18 @@ uv run pytest
 The bundle is a batch pipeline — the intended workflow is
 *upload PDFs → run job → query the indexes*:
 
-- Stages 1–4 rebuild their outputs with `CREATE OR REPLACE` / overwrite, so
-  every run reprocesses the whole Volume subdir. Note that a full re-run
-  recreates the gold tables via `CREATE OR REPLACE`; only the create_indexes
-  stage (Stage 5) syncs existing indexes rather than recreating them.
+- Stages 1–3 (bronze, silver, prepped chunks) rebuild with `CREATE OR REPLACE`,
+  so every run reprocesses the whole Volume subdir.
+- Stage 4 (gold) uses `CREATE TABLE IF NOT EXISTS` + `INSERT OVERWRITE` (not
+  `CREATE OR REPLACE`), so each gold table keeps a stable identity and Change
+  Data Feed continuity across re-runs. This is deliberate: a `CREATE OR REPLACE`
+  here resets the table and breaks the Delta Sync index's CDF lineage
+  (`DELTA_CHANGE_DATA_FEED_INCOMPATIBLE_DATA_SCHEMA`), leaving the index empty.
 - Stage 5 is create-if-not-exists for the Vector Search endpoint and
-  create-or-sync for both indexes (safe across reruns).
+  create-or-sync for both indexes; combined with the CDF-safe gold tables, the
+  indexes sync cleanly on every re-run.
 - Change Data Feed is enabled on both gold tables so the Delta Sync indexes
-  can pick up incremental updates on subsequent runs.
+  pick up each run's updates.
 
 ### First run: verify output
 
@@ -255,11 +260,11 @@ SELECT doc_type, domain, COUNT(*) FROM fins_genai.unstructured_documents.insuran
 GROUP BY doc_type, domain;
 ```
 
-If `doc_type` is null or empty, verify that `ai_classify`'s return shape matches
-`classification_raw:response[0]::string` in your workspace. Also confirm the
-parsed-VARIANT text path (`parsed:pages[*].elements[*].content`) returns
-non-empty text for your documents — some `ai_parse_document` versions nest
-content under `document` rather than `pages` at the top level.
+If `doc_type` is null or empty, verify `ai_classify` **v2.1**'s return shape in
+your workspace: the label is read via `classification_raw:response[0].value::string`
+because v2.1 wraps each response as an object `{"value": "<label>"}` (not a bare
+string). v2.1 classifies on the whole parsed VARIANT directly — there is no
+text-extraction path to check.
 
 ```sql
 -- Check both gold chunk tables are non-empty

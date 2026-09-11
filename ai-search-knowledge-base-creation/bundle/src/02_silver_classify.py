@@ -26,10 +26,11 @@ print(f"silver_table = {silver_table}")
 
 # COMMAND ----------
 
-# Classify on a bounded text slice, not the full parsed VARIANT, to stay under
-# ai_classify's 128k-token cap and avoid feeding layout JSON to the classifier.
-classify_sql = S.classify_expr(S.doc_text_expr("parsed"), S.labels_json(), S.CLASSIFY_INSTRUCTIONS)
-domain_sql   = S.domain_case_expr("classification_raw:response[0]::string")
+# ai_classify v2.1 accepts the parsed VARIANT directly and has a 1M-token window,
+# so classify on the whole parsed document — no text-slicing/token guarding needed.
+# v2.1 response shape is {"response": [{"value": "<label>"}], ...} → read `.value`.
+classify_sql = S.classify_expr("parsed", S.labels_json(), S.CLASSIFY_INSTRUCTIONS)
+domain_sql   = S.domain_case_expr("classification_raw:response[0].value::string")
 
 spark.sql(f"""
 CREATE OR REPLACE TABLE {silver_table} AS
@@ -45,7 +46,7 @@ SELECT
   source_path,
   parsed,
   classification_raw,
-  classification_raw:response[0]::string AS doc_type,
+  classification_raw:response[0].value::string AS doc_type,
   {domain_sql} AS domain
 FROM classified
 """)

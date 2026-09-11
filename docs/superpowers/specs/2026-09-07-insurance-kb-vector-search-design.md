@@ -88,15 +88,16 @@ FROM read_files('/Volumes/{catalog}/{schema}/{volume}/{subdir}/', format => 'bin
 shown inline here for clarity.)
 
 ### Stage 2 — Silver: classify document type
-Derive a document-level text slice from the parsed VARIANT (concatenated element
-contents), then classify into exactly one of the five labels. Classifying on a
-bounded text slice — not the whole VARIANT — keeps input under the `ai_classify`
-128k-token cap and avoids embedding layout metadata in the prompt.
+Classify each parsed document into exactly one of the five labels with
+`ai_classify` **version 2.1**, which accepts the raw parsed VARIANT directly and
+has a 1M-token window — so the whole `parsed` document is passed as input (no
+text-slicing or token-cap guarding needed, and structural cues like titles,
+tables, and section headers are preserved for the classifier).
 
 - Labels are supplied **with descriptions** plus an insurance-domain
   `instructions` string for accuracy (per skill guidance).
-- `ai_classify` returns `VARIANT {"response": ["label"], "error_message": null}`;
-  the label is read via `variant_get(..., '$.response[0]', 'STRING')`.
+- `ai_classify` v2.1 returns `VARIANT {"response": [{"value": "label"}], "error_message": null}`;
+  the label is read via `classification_raw:response[0].value::string`.
 - `domain` is derived from `doc_type` via the routing map.
 
 ```

@@ -66,34 +66,21 @@ def domain_for(doc_type):
     return DOC_TYPE_TO_DOMAIN.get(doc_type, "unknown")
 
 
-def doc_text_expr(parsed_col="parsed", max_chars=12000):
-    """SQL: bounded, document-level text slice from an ai_parse_document VARIANT
-    for classification input (keeps ai_classify under its token cap and avoids
-    feeding layout metadata to the classifier).
-
-    Concatenates the element contents at ``<parsed>:document:elements[].content``.
-    ``variant_get`` does not support the ``[*]`` array wildcard, so the elements
-    array is cast to ``array<variant>`` and walked with ``transform``; ``char(10)``
-    joins them (no escape-sequence ambiguity)."""
-    return (
-        f"substr("
-        f"array_join("
-        f"transform(cast({parsed_col}:document:elements as array<variant>), "
-        f"e -> cast(e:content as string)), "
-        f"char(10)), "
-        f"1, {max_chars})"
-    )
-
-
 def classify_expr(input_col, labels_sql_json, instructions):
-    """Build the ai_classify(...) SQL. Doubles single quotes in string literals."""
+    """Build the ai_classify(...) SQL. Doubles single quotes in string literals.
+
+    Uses ai_classify version 2.1, which accepts a VARIANT (e.g. the raw
+    ai_parse_document output) directly and has a 1M-token window — so callers
+    pass the whole parsed VARIANT and do not need to pre-slice the text. Its
+    response shape is {"response": [{"value": "<label>"}], ...}, so read the
+    label via `<col>:response[0].value::string`."""
     labels_sql = labels_sql_json.replace("'", "''")
     instr_sql = instructions.replace("'", "''")
     return f"""
         ai_classify(
             {input_col},
             '{labels_sql}',
-            map('instructions', '{instr_sql}')
+            map('version', '2.1', 'instructions', '{instr_sql}')
         )
     """
 

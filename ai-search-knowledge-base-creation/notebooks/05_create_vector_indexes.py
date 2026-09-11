@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # 05 — Create Vector Search Indexes: Delta Sync
 # MAGIC
@@ -52,19 +56,22 @@ embedding_model = dbutils.widgets.get("embedding_model")
 w = WorkspaceClient()
 
 # COMMAND ----------
+
 # MAGIC %md ## Ensure the endpoint exists (create if missing) and is online
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 4
+from databricks.sdk.service.vectorsearch import EndpointType
+
 existing = [e.name for e in (w.vector_search_endpoints.list_endpoints() or [])]
 if vs_endpoint not in existing:
     print(f"creating endpoint {vs_endpoint} ...")
-    w.vector_search_endpoints.create_endpoint(name=vs_endpoint, endpoint_type="STANDARD")
+    w.vector_search_endpoints.create_endpoint(name=vs_endpoint, endpoint_type=EndpointType.STANDARD)
 
-# Poll until ONLINE (endpoint creation is asynchronous).
-# NOTE: exact attribute names (endpoint_status.state, list_indexes(...).vector_indexes, .name)
-# should be confirmed against the installed databricks-sdk version on first run;
-# adjust status-poll/list accessors if the SDK differs.
+# Poll until ONLINE (endpoint creation is asynchronous). Accessors below are
+# verified against databricks-sdk on this workspace: endpoint_status.state is an
+# enum (read .value), and list_indexes(...) yields MiniVectorIndex items directly.
 for _ in range(60):
     ep = w.vector_search_endpoints.get_endpoint(endpoint_name=vs_endpoint)
     raw_state = ep.endpoint_status.state if ep.endpoint_status else None
@@ -79,6 +86,7 @@ else:
     raise RuntimeError(f"Vector Search endpoint {vs_endpoint} did not reach ONLINE in time")
 
 # COMMAND ----------
+
 # MAGIC %md ## Create or sync one index per gold table
 
 # COMMAND ----------
@@ -118,6 +126,7 @@ for domain in ("reference", "claims"):
 print("index creation/sync submitted.")
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Querying the indexes
 # MAGIC
@@ -146,3 +155,6 @@ print("index creation/sync submitted.")
 # MAGIC
 # MAGIC The `chunk_to_retrieve` column contains the full retrieval text for each result.
 # MAGIC The pipeline ends here — RAG query patterns live in downstream application notebooks.
+
+# COMMAND ----------
+
