@@ -1,0 +1,35 @@
+bundle:
+  name: insurance_kb_vector_search
+
+variables:
+  catalog:
+    description: Unity Catalog name
+    default: fins_genai
+  schema:
+    description: Schema name
+    default: unstructured_documents
+  volume:
+    description: Volume name containing source PDFs
+    default: pdf_examples
+  volume_subdir:
+    description: Subfolder under the volume that holds the source insurance PDFs
+    default: insurance_docs
+  table_prefix:
+    description: Prefix applied to all bronze/silver/gold tables and indexes
+    default: insurance_kb
+  vs_endpoint:
+    description: Vector Search endpoint name (shared by both indexes)
+    default: insurance_kb_vs
+  embedding_model:
+    description: Databricks-managed embedding model endpoint
+    default: databricks-gte-large-en
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production
