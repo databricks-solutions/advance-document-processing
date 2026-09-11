@@ -15,14 +15,15 @@ Databricks Asset Bundles.
 | [`evaluation-harness/`](./evaluation-harness/) | **Evaluation recipe notebooks** (standalone, not a workflow). A data-prep front-end plus notebooks that profile `ai_parse_document` / `ai_extract` confidence distributions and score `ai_extract` against ground truth (flat fuzzy P/R/F1 and nested type-aware scoring) with `mlflow.genai.evaluate`. |
 | [`parse-pdfs-with-large-num-of-pages/`](./parse-pdfs-with-large-num-of-pages/) | **Single recipe notebook** (standalone, not a workflow). Parses PDFs beyond `ai_parse_document`'s 500-page-per-call limit by routing long documents through chunked `pageRange` calls and stitching the result back into one uniform VARIANT — schema-compatible with the parse pipelines' bronze layer. |
 | [`ai-search-knowledge-base-creation/`](./ai-search-knowledge-base-creation/) | **Insurance knowledge-base RAG-prep** pipeline. Parses insurance PDFs with `ai_parse_document`, classifies each document type with `ai_classify`, chunks with `ai_prep_search`, routes chunks by retrieval domain into two gold tables, and builds a Delta Sync **Vector Search** index per domain (reference / claims). Worked example: an adjuster/underwriter knowledge base. |
+| [`combine-document-pages/`](./combine-document-pages/) | **Recipe notebooks** (standalone, not a workflow). Reassembles a document that arrived as separate single-page PDFs (split upstream) by parsing each page with `ai_parse_document` and stitching the results into one unified VARIANT — schema-compatible with the parse pipelines' bronze layer. Two variants: page order from the filename, or inferred from printed page numbers. |
 
 The four pipelines each ship in two flavors — interactive **batch notebooks** and
 a **Databricks Asset Bundle** (DAB). The chart-analysis and page-classify-extraction
 bundles are **streaming** (Auto Loader + `Trigger.AvailableNow`, scheduled); the
 word-level-citation and ai-search-knowledge-base-creation bundles are **batch** (manual
-trigger). `evaluation-harness/` and `parse-pdfs-with-large-num-of-pages/` are
-notebooks only. Each project's own `README.md` covers its architecture, defaults,
-and quickstart.
+trigger). `evaluation-harness/`, `parse-pdfs-with-large-num-of-pages/`, and
+`combine-document-pages/` are notebooks only. Each project's own `README.md`
+covers its architecture, defaults, and quickstart.
 
 ## Repo layout
 
@@ -34,6 +35,7 @@ advance-document-processing/
 ├── evaluation-harness/                  # AI-function evaluation recipe notebooks
 ├── parse-pdfs-with-large-num-of-pages/  # Parse >500-page PDFs via chunked pageRange (recipe notebook)
 ├── ai-search-knowledge-base-creation/          # Parse→classify→prep→two vector indexes (notebooks + batch DAB)
+├── combine-document-pages/              # Aggregate split single-page PDFs into one VARIANT (recipe notebooks)
 ├── scripts/                             # Cross-project helper scripts
 │   ├── upload_pdfs.sh                   # Upload local PDFs to a UC Volume via the CLI
 │   ├── generate_sample_loan_files.py    # Generate synthetic mortgage loan-file PDFs
