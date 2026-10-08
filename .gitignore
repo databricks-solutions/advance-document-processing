@@ -16,3 +16,7 @@ __pycache__
 .claude/
 .mcp.json
 mlflow.db
+
+# Superpowers notes (local only)
+.superpowers/
+docs/superpowers/
