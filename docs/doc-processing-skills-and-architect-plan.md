@@ -163,15 +163,36 @@ industry research until a pack is demanded.
 
 ## 8. Distribution & UC Gateway
 
-- **Source of truth:** this repo. Reuse the existing install paths (`.claude/skills/install_skills.sh`,
-  `install_genie_code_skills.py` → `/Workspace/Users/<user>/.assistant/skills/`).
-- **UC Gateway publish:** register component + meta skills as governed assets so the
-  customer's workspace resolves them from *their* gateway (preferred resolver).
+- **Source of truth:** top-level `skills/<name>/` in this repo (`.claude/` is gitignored,
+  so skills cannot live there). Pure helper tests live in `skills/tests/` (no `SKILL.md`,
+  so installers skip it).
 - **AI functions** already UC-governed — no change; skills just consume them.
-- **⚠️ Spike (blocking for the UC-resolver path):** confirm the current mechanism for
-  registering *agent skills* (not just AI functions) as UC Gateway assets, access-control
-  model, and how Genie Code / Claude Code resolve them. Until confirmed, ship via
-  repo/plugin install (resolver priority 2–3) and treat UC Gateway as an additive channel.
+
+### 8.1 Spike result (2026-10-11, from docs)
+
+| Runtime | Where it loads skills | How |
+|---|---|---|
+| **Genie Code** | `/Users/<user>/.assistant/skills/<name>/` (personal) or `/Workspace/.assistant/skills/<name>/` (workspace-wide) | Auto-loaded by `description` match, or `@`-mention. Scripts + supporting `.md` allowed, referenced by relative path. UC skills docs do not mention Genie Code. |
+| **Claude Code / external agents** | UC skill securable `catalog.schema.skill` (volume-backed) | `ug` CLI: `ug skills add --names <c.s.skill>` (download) or `ug skills add --location <c.s> --via mcp` (live, whole schema). Publish/update via `create_skill` / `update_skill` MCP tools. |
+
+- Privileges: publish needs `USE SCHEMA` + `CREATE VOLUME`; consumers need `USE CATALOG`,
+  `USE SCHEMA`, `READ VOLUME`. UC skills are **Beta** (account admin enables on Previews page).
+- Same format both sides (agentskills.io: folder + `SKILL.md` with `name`, `description`),
+  so one source folder serves both. Distribution differs:
+  1. **Genie Code:** sync `skills/` → workspace `.assistant/skills/` (installer script).
+  2. **Claude Code:** publish to the customer's UC schema; consume with `ug`, or copy to `.claude/skills/`.
+- Resolver (section 3.1) priority stands: UC skill → locally installed → repo link.
+
+### 8.2 Genie Code compatibility rules (apply to every skill)
+
+1. Frontmatter: only `name` + `description`; `name` lowercase-hyphenated, equal to the folder name.
+2. All instructions are **notebook cells / SQL runnable on serverless** — no local shell,
+   `uv run`, local paths, or Claude-specific tools (subagents, Bash, Skill tool).
+3. Bundled helpers are **pasted into a notebook cell**, not imported (imported modules used
+   in UDFs fail on serverless without `register_pickle_by_value`).
+4. Helper `.py` files must **not** start with `# Databricks notebook source` — the uploader's
+   `ImportFormat.AUTO` would convert them to notebooks.
+5. Reference other skills by name (e.g. "use the `databricks-ai-functions` skill"), never by path.
 
 ---
 
@@ -221,7 +242,8 @@ Use `skill-creator` eval tooling to run these as a regression set with variance 
 
 ## 12. Open questions
 
-1. UC Gateway agent-skill registration mechanism + access model (spike, section 8).
+1. ~~UC Gateway agent-skill registration mechanism + access model~~ — resolved from docs
+   (section 8.1). Still to confirm hands-on: whether Genie Code can load UC skills directly.
 2. Profiler sample size / cost ceiling for the tier-b deep pass on large corpora.
 3. Minimum business-question set for intake that stays customer-answerable yet high-signal.
 4. Whether the plan output should also emit a starter DAB skeleton, or stay pure markdown.
