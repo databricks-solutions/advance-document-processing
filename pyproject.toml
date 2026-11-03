@@ -20,10 +20,14 @@ testpaths = [
     "document-page-classify-extraction/tests",
     "evaluation-harness/tests",
     "ai-search-knowledge-base-creation/tests",
+    "skills/tests",
 ]
 pythonpath = [
     "ai-extract-word-level-citation/bundle/src",
     "document-page-classify-extraction/bundle/src",
     "evaluation-harness/src",
     "ai-search-knowledge-base-creation/bundle/src",
+    "skills/parse-large-pdfs/scripts",
+    "skills/analyze-extraction-confidence/scripts",
+    "skills/crop-parsed-elements/scripts",
 ]
