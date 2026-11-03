@@ -81,3 +81,10 @@ def test_figure_context_includes_adjacent_legend_parsed_as_footnote():
     ctx = figure_context(els, els[1])
     assert ctx.startswith("Expenses as a Percentage of Revenue\nGeneral &\nAdministrative")
     assert "Provision for income taxes" not in ctx   # far, long footnote is not context
+
+
+def test_sql_str_escapes_endpoint_names():
+    from crop_elements import sql_str
+
+    assert sql_str("databricks-claude-sonnet-4-5") == "'databricks-claude-sonnet-4-5'"
+    assert sql_str("x'); DROP") == "'x\\'); DROP'"

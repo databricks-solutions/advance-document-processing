@@ -101,3 +101,9 @@ def test_flatten_still_recurses_when_wrapped_value_holds_leaves():
         "items": {"value": [{"name": {"value": "x", "confidence_score": 0.95}}], "confidence_score": 0.9},
     })
     assert [(l["path"], l["confidence"]) for l in leaves] == [("items[0].name", 0.95)]
+
+
+def test_classify_row_without_leaves_is_a_review_item_not_a_crash():
+    # explode_outer yields one all-null row for an empty/null ai_extract response
+    assert classify_extract_leaf(None, None, 0.95) == "review:no_leaves"
+    assert classify_extract_leaf(None, None, None) == "review:no_leaves"

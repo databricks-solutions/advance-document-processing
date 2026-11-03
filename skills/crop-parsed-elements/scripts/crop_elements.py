@@ -135,6 +135,11 @@ def splice_figure_text(elements, replacements):
     return "\n".join(lines)
 
 
+def sql_str(value):
+    """Spark SQL string literal with backslashes and single quotes escaped."""
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def crop_file_name(doc_id, element_idx, page_id):
     stem = os.path.splitext(os.path.basename(doc_id))[0]
     digest = hashlib.sha1(doc_id.encode()).hexdigest()[:10]
@@ -177,32 +182,54 @@ def elements_to_crop(parsed_df, parsed_col="parsed", doc_id_col="path", types=("
 def crop_elements(spark, elements_df, out_dir, pad_px=20, min_side_px=150, render_dpi=PARSE_DPI):
     """Render each needed PDF page once (pypdfium2, `render_dpi`), crop every element, write PNGs
     under `out_dir` (a /Volumes path). doc_id must be the source PDF's /Volumes path.
-    Returns elements_df columns + crop_path, status (ok | too_small | bad_page | pdf_not_found).
+    Returns elements_df columns + crop_path, status
+    (ok | too_small | bad_page | pdf_not_found | bad_pdf).
     Only the first bbox of each element is cropped (n_boxes shows when there are more)."""
     import pandas as pd
     from pyspark.sql import functions as F
+    from pyspark.sql.types import StringType, StructField, StructType
 
-    # read parent folders, not the file list: binaryFile raises PATH_NOT_FOUND on any missing file
-    doc_dirs = sorted({r["doc_id"].rsplit("/", 1)[0] for r in elements_df.select("doc_id").distinct().collect()})
-    pdfs = spark.read.format("binaryFile").option("pathGlobFilter", "*.pdf").load(doc_dirs).select(
-        F.regexp_replace("path", "^dbfs:", "").alias("pdf_path"), "content"
+    def _norm(c):
+        return F.regexp_replace(c, "^dbfs:", "")
+
+    # Which referenced PDFs exist: list the parent folders' paths only (binaryFile skips reading
+    # `content` when it is not selected), then read just those files. Loading the doc_id list
+    # directly raises PATH_NOT_FOUND on any missing file.
+    wanted = {r["doc_id"].removeprefix("dbfs:") for r in elements_df.select("doc_id").distinct().collect()}
+    listed = spark.read.format("binaryFile").option("pathGlobFilter", "*.pdf").load(
+        sorted({p.rsplit("/", 1)[0] for p in wanted})
+    ).select(_norm(F.col("path")).alias("p"))
+    present = [r["p"] for r in listed.collect() if r["p"] in wanted]
+    pdfs = (
+        spark.read.format("binaryFile").load(present).select(_norm(F.col("path")).alias("pdf_path"), "content")
+        if present else spark.createDataFrame([], "pdf_path string, content binary")
     )
-    # left join: an element whose doc_id matches no PDF gets status pdf_not_found instead of vanishing
-    work = elements_df.withColumn("pdf_path", F.regexp_replace("doc_id", "^dbfs:", "")).join(pdfs, "pdf_path", "left")
-    out_schema = elements_df.schema.add("crop_path", "string").add("status", "string")
+
+    # One row per document (its elements collected), joined to the PDF bytes once -- joining
+    # bytes onto every element row would hold one copy of the PDF per element.
+    el_cols = elements_df.columns
+    per_doc = elements_df.groupBy("doc_id").agg(F.collect_list(F.struct(*el_cols)).alias("els"))
+    # left join: a doc_id that matches no PDF gets status pdf_not_found instead of vanishing
+    work = per_doc.withColumn("pdf_path", _norm(F.col("doc_id"))).join(pdfs, "pdf_path", "left")
+    out_schema = StructType(
+        list(elements_df.schema.fields) + [StructField("crop_path", StringType()), StructField("status", StringType())]
+    )
     cols = [f.name for f in out_schema.fields]
 
-    def _crop_doc(pdf_df):
+    def _crop_doc(doc_df):
         import pypdfium2 as pdfium
 
-        if pdf_df["content"].iloc[0] is None:
-            missing = pdf_df.drop(columns=["content", "pdf_path"]).assign(crop_path=None, status="pdf_not_found")
-            return missing[cols]
-        pdf = pdfium.PdfDocument(pdf_df["content"].iloc[0])
+        content = doc_df["content"].iloc[0]
+        records = [dict(e) for e in doc_df["els"].iloc[0]]
+        if content is None:
+            return pd.DataFrame([{**r, "crop_path": None, "status": "pdf_not_found"} for r in records], columns=cols)
+        try:
+            pdf = pdfium.PdfDocument(content)
+        except pdfium.PdfiumError:  # corrupt or encrypted PDF: mark its rows, don't fail the job
+            return pd.DataFrame([{**r, "crop_path": None, "status": "bad_pdf"} for r in records], columns=cols)
         current_page, img, rows = None, None, []
         # page order + one rendered page in memory at a time (a 200-DPI page is ~30-50 MB)
-        records = sorted(pdf_df.drop(columns=["content", "pdf_path"]).to_dict("records"),
-                         key=lambda rec: (rec["page_id"] is None, rec["page_id"] or 0))
+        records.sort(key=lambda rec: (rec["page_id"] is None, rec["page_id"] or 0))
         for r in records:
             box_w = abs(r["coord"][2] - r["coord"][0])
             box_h = abs(r["coord"][3] - r["coord"][1])
@@ -238,15 +265,18 @@ def vision_insights(spark, crops_df, endpoint, prompt=DEFAULT_CHART_PROMPT):
     from pyspark.sql import functions as F
 
     ok = crops_df.where("status = 'ok'")
-    images = spark.read.format("binaryFile").load(
-        [r["crop_path"] for r in ok.select("crop_path").collect()]
-    ).select(F.regexp_replace("path", "^dbfs:", "").alias("crop_path"), F.col("content").alias("image"))
+    paths = [r["crop_path"] for r in ok.select("crop_path").collect()]
+    if not paths:  # nothing to send: same columns, no rows
+        return ok.withColumn("response", F.lit(None).cast("string")).withColumn("error", F.lit(None).cast("string"))
+    images = spark.read.format("binaryFile").load(paths).select(
+        F.regexp_replace("path", "^dbfs:", "").alias("crop_path"), F.col("content").alias("image")
+    )
     full_prompt = F.concat(
         F.lit(prompt + "\n\nPage context:\n"), F.coalesce("context", F.lit("")),
         F.lit("\n\nParser description (may be generic or wrong):\n"), F.coalesce("description", F.lit("")),
     )
     q = ok.join(images, "crop_path").withColumn("full_prompt", full_prompt).withColumn(
-        "r", F.expr(f"ai_query('{endpoint}', full_prompt, files => image, failOnError => false)")
+        "r", F.expr(f"ai_query({sql_str(endpoint)}, full_prompt, files => image, failOnError => false)")
     )
     return q.drop("image", "full_prompt").withColumn(
         "response", F.regexp_replace("r.result", r"(?s)^\s*```(?:json)?\s*|\s*```\s*$", "")

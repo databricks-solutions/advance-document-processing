@@ -57,3 +57,13 @@ def test_stitch_does_not_mutate_input():
     c = _chunk(3, 2, 2)
     stitch_chunks([(1, c)])
     assert c["document"]["elements"][1]["id"] == 1
+
+
+def test_sql_literals_escape_quotes_and_normalize_booleans():
+    from large_pdf_parse import options_map_sql, sql_str
+
+    assert sql_str("figure,table") == "'figure,table'"
+    assert sql_str("it's") == "'it\\'s'"
+    assert sql_str("a\\b") == "'a\\\\b'"
+    assert sql_str(True) == "'true'"
+    assert options_map_sql({"version": "2.0", "pageRange": "1-500"}) == "map('version', '2.0', 'pageRange', '1-500')"

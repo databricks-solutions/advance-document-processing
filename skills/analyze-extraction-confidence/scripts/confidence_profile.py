@@ -92,6 +92,8 @@ def level_cutoff(confidences, pct=0.05):
 
 def classify_extract_leaf(status, confidence, cutoff):
     """'absent' | 'ok' | 'review:<reason>' for one leaf, relative to the corpus cutoff level."""
+    if status is None:  # explode_outer row for a document whose response has no leaves at all
+        return "review:no_leaves"
     if status == LEAF_ABSENT:
         return "absent"
     if status == LEAF_UNSCORED:
@@ -147,14 +149,16 @@ def flag_parse_elements(elements, pct=0.05, abs_floor=None):
 
     cutoffs = elements.where("confidence IS NOT NULL").groupBy("type").agg(
         F.expr(f"percentile_approx(confidence, {pct})").alias("type_cutoff")
-    )
+    ).withColumnRenamed("type", "cutoff_type")
     flag = F.when(F.col("confidence").isNull(), "review:unscored")
     if abs_floor is not None:
         flag = flag.when(F.col("confidence") < F.lit(abs_floor), "review:below_floor")
     flag = flag.when(
         (F.col("confidence") < F.col("type_cutoff")) & (F.col("confidence") < 1.0), "review:below_type_pct"
     ).otherwise("ok")
-    return elements.join(cutoffs, "type", "left").withColumn("flag", flag)
+    # null-safe join: elements with a null `type` still get their group's cutoff
+    joined = elements.join(cutoffs, elements["type"].eqNullSafe(cutoffs["cutoff_type"]), "left")
+    return joined.drop("cutoff_type").withColumn("flag", flag)
 
 
 def parse_page_rollup(flagged):

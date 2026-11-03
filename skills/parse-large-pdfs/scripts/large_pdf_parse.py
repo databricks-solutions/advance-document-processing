@@ -29,6 +29,18 @@ def chunk_page_ranges(n_pages, chunk_size=PAGE_LIMIT):
     ]
 
 
+def sql_str(value):
+    """Spark SQL string literal: backslashes and single quotes escaped, booleans lowercased."""
+    if isinstance(value, bool):
+        value = "true" if value else "false"
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def options_map_sql(options):
+    """map('k1', 'v1', ...) literal for ai_parse_document options."""
+    return "map(" + ", ".join(f"{sql_str(k)}, {sql_str(v)}" for k, v in options.items()) + ")"
+
+
 def expected_chunks(n_pages, chunk_size=PAGE_LIMIT):
     return math.ceil(n_pages / chunk_size) if n_pages and n_pages > 0 else 0
 
@@ -95,17 +107,10 @@ def parse_documents(spark, bronze_df, chunk_size=PAGE_LIMIT, options=None):
     short and long documents. Rows with page_count <= 0 are excluded; report them
     from bronze separately.
     """
-    from functools import reduce
-
-    from pyspark.sql import DataFrame
     from pyspark.sql.functions import col, expr, udf
     from pyspark.sql.types import ArrayType, StringType
 
     opts = {"version": "2.0", **(options or {})}
-
-    def _opts_sql(extra=None):
-        merged = {**opts, **(extra or {})}
-        return ", ".join(f"'{k}', '{v}'" for k, v in merged.items())
 
     docs = bronze_df.filter("page_count > 0")
     short = docs.filter(col("page_count") <= chunk_size)
@@ -115,12 +120,13 @@ def parse_documents(spark, bronze_df, chunk_size=PAGE_LIMIT, options=None):
         "path",
         "page_count",
         "CAST(1 AS BIGINT) AS chunk_count",
-        f"ai_parse_document(content, map({_opts_sql()})) AS parsed",
+        f"ai_parse_document(content, {options_map_sql(opts)}) AS parsed",
     )
 
-    # pageRange must be a literal: one Spark plan per distinct range string.
-    # Ranges are always 1-500, 501-1000, ... so the set is bounded by the longest
-    # document, not by how many long documents there are.
+    # pageRange must be a literal. Ranges are always 1-500, 501-1000, ... so the set is
+    # bounded by the longest document. One CASE branch per range keeps every pageRange a
+    # literal while reading the long PDFs once (a union of per-range plans re-reads them
+    # once per range, and serverless has no cache()).
     max_pages = long_.selectExpr("max(page_count) AS m").first()["m"] or 0
     if max_pages == 0:
         return short_parsed
@@ -129,15 +135,13 @@ def parse_documents(spark, bronze_df, chunk_size=PAGE_LIMIT, options=None):
     exploded = long_.withColumn("ranges", ranges_udf("page_count")).selectExpr(
         "path", "page_count", "content", "posexplode(ranges) AS (chunk_idx, page_range)"
     )
-    per_chunk = reduce(
-        DataFrame.unionByName,
-        [
-            exploded.filter(col("page_range") == pr).withColumn(
-                "parsed", expr(f"ai_parse_document(content, map({_opts_sql({'pageRange': pr})}))")
-            )
-            for pr in chunk_page_ranges(max_pages, chunk_size)
-        ],
-    ).selectExpr("path", "page_count", "chunk_idx", "to_json(parsed) AS parsed_json")
+    branches = " ".join(
+        f"WHEN {sql_str(pr)} THEN ai_parse_document(content, {options_map_sql({**opts, 'pageRange': pr})})"
+        for pr in chunk_page_ranges(max_pages, chunk_size)
+    )
+    per_chunk = exploded.withColumn("parsed", expr(f"CASE page_range {branches} END")).selectExpr(
+        "path", "page_count", "chunk_idx", "to_json(parsed) AS parsed_json"
+    )
 
     @udf(StringType())
     def _stitch(chunks):
@@ -162,8 +166,9 @@ def parse_documents(spark, bronze_df, chunk_size=PAGE_LIMIT, options=None):
 
 
 def incomplete_documents(parsed_df, chunk_size=PAGE_LIMIT):
-    """Long documents missing chunks or carrying chunk errors. Empty = complete."""
+    """Documents with no parse output, missing chunks, or parse errors. Empty = complete."""
     return parsed_df.filter(
-        f"chunk_count < ceil(page_count / {chunk_size}) "
+        "parsed IS NULL OR parsed:document IS NULL "
+        f"OR chunk_count < ceil(page_count / {chunk_size}) "
         "OR size(try_cast(parsed:error_status AS ARRAY<VARIANT>)) > 0"
     )

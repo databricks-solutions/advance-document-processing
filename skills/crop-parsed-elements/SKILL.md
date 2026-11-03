@@ -51,7 +51,7 @@ els = elements_to_crop(spark.table("<cat>.<sch>.<parsed_table>"), parsed_col="pa
 display(els.select("doc_id", "page_id", "builtin_chart_json", "context"))   # built-in data + context
 
 crops = crop_elements(spark, els, out_dir="/Volumes/<cat>/<sch>/<vol>/crops")  # doc_id = source PDF path
-crops.write.mode("overwrite").saveAsTable("<cat>.<sch>.element_crops")     # status: ok | too_small | bad_page | pdf_not_found
+crops.write.mode("overwrite").saveAsTable("<cat>.<sch>.element_crops")     # status: ok | too_small | bad_page | pdf_not_found | bad_pdf
 
 insights = vision_insights(spark, spark.table("<cat>.<sch>.element_crops"), "<vision endpoint>")
 ```
